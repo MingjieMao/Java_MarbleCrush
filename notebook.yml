@@ -1,0 +1,11 @@
+time-on-task:
+- task: "Part 1"
+  time: 60
+- task: "Part 2"
+  time: 
+sessions: 
+- start: 2025-08-15 18:30
+  end: 2025-08-15 19:30
+  notes: "worked on part 1, Designing the File System Model"
+
+  
