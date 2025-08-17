@@ -1,6 +1,6 @@
 time-on-task:
 - task: "Part 1"
-  time: 120
+  time: 180
 - task: "Part 2"
   time: 
 sessions: 
@@ -10,5 +10,7 @@ sessions:
 - start: 2025-08-15 21:00
   end: 2025-08-15 22:00
   notes: "worked on part 1, addItemToDirectory"
-
+- start: 2025-08-17 14:10
+  end: 2025-08-17 15:10
+  notes: "worked on part 1, fixed some problems"
   
