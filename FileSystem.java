@@ -545,7 +545,7 @@ Maybe<Item> findByNameInList(String name, ConsList<Item> items) {
  * @return Reture a when it is Something; otherwise b.
  */
 Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b) {
-    switch(a) {
+    return switch(a) {
         case Something<Item>(var n) -> a;
         case Nothing<Item>() -> b;
     };
@@ -553,42 +553,142 @@ Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b) {
 
 
 void testfindByName() {
-    // FileMatch: Should return Something(file)
-    Item file1 = new File("a.txt", 1);
-    testEqual(new Something<Item>(file1), findByName("a.txt", file1), "Should match a file with the same name at the root.");
+    // 1) FileMatch: root is a file with the same name -> should return Something(file)
+    Item f1 = new File("a.txt", 1);
+    testEqual(new Something<Item>(f1), findByName("a.txt", f1),
+                "Should match a file with the same name at the root.");
 
-    // FileNoMatch: Should return Nothing
-    Item file2 = new File("a.txt", 1);
-    testEqual(new Nothing<Item>(), findByName("b.txt", file2), "Should NOT match a file with a different name.");
+    // 2) FileNoMatch: root is a file with a different name -> should return Nothing
+    Item f2 = new File("a.txt", 1);
+    testEqual(new Nothing<Item>(), findByName("b.txt", f2),
+                "Should NOT match a file with a different name.");
 
-    // DirectoryMatch: Should return Something(dir)
-    Item dir1 = new Directory("docs", new Nil<Item>());
-    testEqual(new Something<Item>(dir1), findByName("docs", dir1), "Should match a directory with the same name at the root.");
+    // 3) DirectoryMatch: root is a directory with the same name -> should return Something(dir)
+    Item d1 = new Directory("docs", MakeList());
+    testEqual(new Something<Item>(d1), findByName("docs", d1),
+                "Should match a directory with the same name at the root.");
 
-    // RecursiveSearch: Should return Something(nestedFile)
-    Item nestedFile = new File("target.txt", 5);
-    Item dir2 = new Directory("docs", new Cons<Item>(nestedFile, new Nil<Item>()));
-    testEqual(new Something<Item>(nestedFile), findByName("target.txt", dir2),
-                "Should search recursively into children and find a nested file.");
-
-    // PreferDirectory: Should prefer the directory (first match)
-    Item file3 = new File("dup", 1);
-    Item dir3 = new Directory("dup", new Nil<Item>());
-    Item parent = new Directory("root", new Cons<Item>(dir3, new Cons<Item>(file3, new Nil<Item>())));
-    testEqual(new Something<Item>(dir3), findByName("dup", parent),
-                "When duplicates exist, should return the first match (the directory before the later file).");
-
-    // EmptyDirectory: Should return Nothing
-    Item dir4 = new Directory("empty", new Nil<Item>());
-    testEqual(new Nothing<Item>(), findByName("nonexistent", dir4),
+    // 4) EmptyDirectory: searching an empty directory for a missing name -> should return Nothing
+    Item d2 = new Directory("empty", MakeList());
+    testEqual(new Nothing<Item>(), findByName("nonexistent", d2),
                 "Searching an empty directory for a non-existent name should yield Nothing.");
 
-    // ComplexStructure: Should return that nested file
-    Item targetFile = new File("n.txt", 12);
-    Item docsDir = new Directory("docs", new Cons<Item>(targetFile, new Nil<Item>()));
-    Item root = new Directory("root", new Cons<Item>(new File("a", 5), new Cons<Item>(docsDir, new Nil<Item>())));
-    testEqual(new Something<Item>(targetFile), findByName("n.txt", root),
-                "Should find the nested file inside a deeper structure.");
+    // 5) RecursiveSearch: target only exists in children -> should find nested file
+    Item nestedFile = new File("target.txt", 5);
+    Item d3 = new Directory("docs", MakeList(nestedFile));
+    testEqual(new Something<Item>(nestedFile), findByName("target.txt", d3),
+              "Should search recursively into children and find a nested file.");
+    
+    // 6) RootBeatsChild: both root and a child have the same name -> should return root first
+    Item rootDup = new Directory("dup", MakeList(new File("dup", 1)));
+    testEqual(new Something<Item>(rootDup), findByName("dup", rootDup),
+                "When root matches, it should be returned before searching children.");
+    
+    // 7)Two siblings have the same name; file comes before directory -> should return the file (first match)
+    Item fileFirst = new File("dup", 1);
+    Item dirSecond = new Directory("dup", MakeList());
+    Item root = new Directory("root", MakeList(fileFirst, dirSecond));
+    testEqual(new Something<Item>(fileFirst), findByName("dup", root),
+                "When duplicates exist at the same level, return the first occurrence (file before dir).");
+
+    // 8) LeftToRightOrder: both left and right subtrees contain a match -> should return left match
+    Item tLeft = new File("target", 1);
+    Item left = new Directory("L", MakeList(tLeft));
+    Item tRight = new File("target", 2);
+    Item right = new Directory("R", MakeList(tRight));
+    Item rootLR = new Directory("root", MakeList(left, right));
+    testEqual(new Something<Item>(tLeft), findByName("target", rootLR),
+              "Should return the match from the left subtree before the right subtree.");
+
+    // 9) Left subtree has no match; right subtree contains the target -> should return the right match
+    Item rightHit = new File("hit", 1);
+    Item leftNoHit = new Directory("L", MakeList(new File("x", 2)));
+    Item rightOnly = new Directory("R", MakeList(rightHit));
+    Item rootRight = new Directory("root", MakeList(leftNoHit, rightOnly));
+    testEqual(new Something<Item>(rightHit), findByName("hit", rootRight),
+              "Should continue to the right subtree when the left subtree has no match.");
+    
+    // 10) NotFoundDeep: deep structure with no matching name -> should return Nothing
+    Item deep = new Directory("root",
+                    MakeList(new Directory("L1",
+                            MakeList(new Directory("L2",
+                                    MakeList(new File("x", 1)))
+                            ))
+                    ));
+    testEqual(new Nothing<Item>(), findByName("zzz", deep),
+              "Should return Nothing when no matching name exists anywhere.");
+}
+
+
+void testfindByNameInList() {
+    // Empty
+    ConsList<Item> empty = MakeList();
+    testEqual(new Nothing<Item>(), findByNameInList("a.txt", empty), "Empty list should return Nothing.");
+
+    // Single file
+    Item sFile = new File("a.txt", 1);
+    ConsList<Item> list1 = MakeList(sFile);
+    testEqual(new Something<Item>(sFile), findByNameInList("a.txt", list1),
+                "Singleton list should return its only matching element.");
+
+    // Multiple items: should return the first match
+    Item f1 = new File("a.txt", 1);
+    Item f2 = new File("a.txt", 2);
+    ConsList<Item> list2 = MakeList(f1, f2);
+    testEqual(new Something<Item>(f1), findByNameInList("a.txt", list2),
+                "Should return the first matching element from left to right.");
+
+    // Recursive: directory in list contains the target
+    Item nestedFile = new File("target.txt", 5);
+    Item dirWithTarget = new Directory("docs", MakeList(nestedFile));
+    ConsList<Item> list3 = MakeList(dirWithTarget);
+    testEqual(new Something<Item>(nestedFile), findByNameInList("target.txt", list3),
+                "Should search recursively into the sub-directory.");
+
+    // First no hit, second hits
+    Item noHit = new File("zzz", 1);
+    Item hit   = new File("hit.txt", 2);
+    Item dirHit = new Directory("folder", MakeList(hit));
+    ConsList<Item> list4 = MakeList(noHit, dirHit);
+    testEqual(new Something<Item>(hit), findByNameInList("hit.txt", list4),
+                "Should continue to the right when the left element does not match.");
+
+    // Duplicates at same level: return the first occurrence
+    Item dupFile = new File("dup", 1);
+    Item dupDir  = new Directory("dup", MakeList());
+    ConsList<Item> list6 = MakeList(dupFile, dupDir);
+    testEqual(new Something<Item>(dupFile),findByNameInList("dup", list6),
+                "With duplicates at the same level, return the first occurrence.");
+
+    // No match anywhere
+    Item otherFile = new File("a.txt", 1);
+    Item emptyDir  = new Directory("docs", MakeList());
+    ConsList<Item> list5 = MakeList(otherFile, emptyDir);
+    testEqual(new Nothing<Item>(), findByNameInList("notfound.txt", list5),
+                "Should return Nothing when no element matches.");
+}
+
+
+void testPreferFirst() {
+    // BothSomething: when both are Something, return the first (a1)
+    Maybe<Item> a1 = new Something<Item>(new File("a.txt", 1));
+    Maybe<Item> b1 = new Something<Item>(new File("b.txt", 2));
+    testEqual(a1, preferFirst(a1, b1), "Both Something: should return the first argument.");
+
+    // FirstSomething: first is Something, second is Nothing -> return first
+    Maybe<Item> a2 = new Something<Item>(new File("a.txt", 1));
+    Maybe<Item> b2 = new Nothing<Item>();
+    testEqual(a2, preferFirst(a2, b2), "First Something, second Nothing: should return the first argument.");
+
+    // SecondSomething: first is Nothing, second is Something -> return second
+    Maybe<Item> a3 = new Nothing<Item>();
+    Maybe<Item> b3 = new Something<Item>(new File("b.txt", 2));
+    testEqual(b3, preferFirst(a3, b3), "First Nothing, second Something: should return the second argument.");
+
+    // BothNothing: both are Nothing -> return the second (by our spec)
+    Maybe<Item> a4 = new Nothing<Item>();
+    Maybe<Item> b4 = new Nothing<Item>();
+    testEqual(b4, preferFirst(a4, b4), "Both Nothing: should return the second argument.");
 }
 
 
@@ -618,7 +718,7 @@ void test() {
     runAsTest(this::testCalculateSize_AddItemIncreasesByItemSize);
     runAsTest(this::testCalculateSize_AddEmptyDirNoChange);
 
-    // 5. cfindByName tests
+    // 5. findByName tests
     runAsTest(this::testfindByName);
     runAsTest(this::testfindByNameInList);
     runAsTest(this::testPreferFirst);
