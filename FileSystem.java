@@ -16,8 +16,12 @@ import static comp1110.testing.Comp1110Unit.*;
  *  - File, a simple item, cannot contain other items.
  *  - Directory, a more complex item, can contain both files and other directories.
  * 3. Examples:
- *    - file1 = new File("1110.txt", 1200) 
- *    - file2 = new Directory("emptyFolder", MakeList())
+ *    - Item file1 = new File("1110.txt", 1200);
+ *    - Item dir1 = new Directory("emptyFolder", MakeList()); 
+ *    - Item dir2 = new Directory("docs", MakeList(new File("a.txt", 10), new File("b.txt", 200)));
+ *    - Item dir4 = new Directory("workspace", MakeList(
+        new File("notes.md", 1500),
+        new Directory("images", MakeList(new File("cat.png", 20480), new File("dog.png", 18000)))));
  * 4. Design Strategy: Template application
  * 5. Implementation
  */
@@ -32,7 +36,6 @@ sealed interface Item permits File, Directory {
  *        case Directory(String name, ConsList<Item> items) -> ...;
  *     }...; 
  * }
- * 
  */
 
 /**

@@ -1,8 +1,8 @@
 time-on-task:
 - task: "Part 1"
-  time: 480
+  time: 490
 - task: "Part 2"
-  time: 
+  time: 50
 sessions: 
 - start: 2025-08-15 18:30
   end: 2025-08-15 19:30
@@ -28,3 +28,6 @@ sessions:
 - start: 2025-08-17 20:30
   end: 2025-08-17 21:30
   notes: "finish part 1"
+- start: 2025-08-17 21:40
+  end: 2025-08-17 22:40
+  notes: "worked on part2"
