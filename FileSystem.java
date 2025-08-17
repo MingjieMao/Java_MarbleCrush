@@ -96,18 +96,27 @@ Item makeEmptyDirectory(String name) {
 }
 
 void testIsFile_File() {
-    Item file = makeFile("1110.txt", 1200); 
+    File f = new File("1110.txt", 1200); 
+    Item file = f; 
     testEqual(true, isFile(file), "isFile() should return true for a file item.");
+    testEqual("1110.txt", f.name(), "File name should be stored.");
+    testEqual(1200, f.size(), "File size should be stored.");
 }
 
 void testIsFile_Directory() {
     Item dir = makeEmptyDirectory("emptyFolder");
     testEqual(false, isFile(dir), "isFile() should return false for a directory item.");
+    testEqual("emptyFolder", dir.name(), "Directory name should be preserved.");
 }
 
 void testIsDirectory_Directory() {
-    Item dir = makeEmptyDirectory("emptyFolder");
-    testEqual(true, isDirectory(dir),  "isDirectory() should return true for a directory item.");
+    // Empty directory case
+    Item empty = makeEmptyDirectory("emptyFolder");
+    testEqual(true, isDirectory(empty), "isDirectory() should return true for a directory item.");
+
+    // Non-empty directory should still be recognized as a directory
+    Directory nonEmpty = new Directory("nonEmpty", MakeList(new File("a.txt", 1)));
+    testEqual(true, isDirectory(nonEmpty), "Non-empty directory should also be recognized as a directory.");
 }
 
 void testIsDirectory_File() {
@@ -116,8 +125,16 @@ void testIsDirectory_File() {
 }
 
 void testMakeFile_SizeZero() {
-    Item file = makeFile("empty.txt", 0);
-    testEqual(true, isFile(file), "makeFile() with size 0 should still be a valid file.");
+    File f0 = new File("empty.txt", 0);
+    testEqual(true, isFile(f0), "makeFile() with size 0 should still be a valid file.");
+    testEqual("empty.txt", f0.name(), "File name should be stored.");
+    testEqual(0, f0.size(), "Zero size should be preserved.");
+}
+
+void testMakeFile_HugeSize() {
+    File huge = new File("huge.bin", 2147483647); // Integer.MAX_VALUE
+    testEqual(true, isFile(huge), "File with very large size should still be valid.");
+    testEqual(2147483647, huge.size(), "Large size should be preserved.");
 }
 
 void testMakeEmptyDirectory_IsEmpty() {
@@ -333,25 +350,25 @@ int sumSizes(ConsList<Item> items) {
     };
 }
 
-// tests: file returns its own size
+// Test1: file returns its own size
 void testCalculateSize_File() {
     Item f = new File("a.txt", 1200);
     testEqual(1200, calculateSize(f), "A file's size should be its stored size.");
 }
 
-// tests: empty directory is size 0
+// Test2: empty directory is size 0
 void testCalculateSize_EmptyDir() {
     Item d = new Directory("empty", MakeList());
     testEqual(0, calculateSize(d), "Empty directory size should be 0.");
 }
 
-// tests: flat directory sum
+// Test3: flat directory sum
 void testCalculateSize_FlatDir() {
     Item flat = new Directory("flat", MakeList(new File("a", 3), new File("b", 7)));
     testEqual(10, calculateSize(flat), "Flat directory size should be sum of files (3+7).");
 }
 
-// tests: single nested directory
+// Test4: single nested directory
 void testCalculateSize_NestedDir() {
     Item nested = new Directory("nested",
             MakeList(
@@ -362,7 +379,7 @@ void testCalculateSize_NestedDir() {
     testEqual(25, calculateSize(nested), "Nested directory size should be 5 + 12 + 8 = 25.");
 }
 
-// tests: deeper nesting
+// Test5: deeper nesting
 void testCalculateSize_DeepNested() {
     Item deep = new Directory("root",
             MakeList(
@@ -378,6 +395,61 @@ void testCalculateSize_DeepNested() {
     testEqual(10, calculateSize(deep), "Deeply nested size should sum all leaf files, which should be 1+2+3+4 = 10.");
 }
 
+// Edge: zero-size file contributes 0
+void testCalculateSize_FileZero() {
+    Item f0 = new File("zero.bin", 0);
+    testEqual(0, calculateSize(f0), "Zero-size file should contribute 0.");
+}
+
+// Edge: directory with all zero-size files
+void testCalculateSize_FlatAllZero() {
+    Item flatZero = new Directory("zeros",
+        MakeList(new File("a", 0), new File("b", 0), new File("c", 0)));
+    testEqual(0, calculateSize(flatZero), "All-zero files should sum to 0.");
+}
+
+// Edge: directory tree that contains only empty subdirectories
+void testCalculateSize_NestedEmptyDirsOnly() {
+    Item onlyEmptyDirs =
+        new Directory("root",
+            MakeList(
+                new Directory("e1", MakeList()),
+                new Directory("e2",
+                    MakeList(
+                        new Directory("e21", MakeList()),
+                        new Directory("e22", MakeList())
+                    )
+                )
+            )
+        );
+    testEqual(0, calculateSize(onlyEmptyDirs), "Nested empty directories should have total size 0.");
+}
+
+// Edge: large numbers within int range
+void testCalculateSize_LargeButWithinInt() {
+    // 2_000_000_000 + 147_483_647 = 2_147_483_647 (Integer.MAX_VALUE)
+    Item big = new Directory("big", MakeList(new File("x", 2_000_000_000), new File("y", 147_483_647)));
+    testEqual(2_147_483_647, calculateSize(big), "Sum should reach Integer.MAX_VALUE without overflow.");
+}
+
+// Property: size(addItem(dir, it)) == size(dir) + size(it)
+void testCalculateSize_AddItemIncreasesByItemSize() {
+    Directory base = new Directory("root", MakeList(new File("a", 3), new File("b", 7))); // size 10
+    Item added = new Directory("docs", MakeList(new File("n.txt", 12), new File("m.txt", 8))); // size 20
+    Directory result = addItemToDirectory(base, added);
+    testEqual(calculateSize(base) + calculateSize(added), calculateSize(result), 
+        "Adding an item should increase directory size by that item's size.");
+}
+
+// Property: adding an empty directory doesn't change size
+void testCalculateSize_AddEmptyDirNoChange() {
+    Directory base = new Directory("root", MakeList(new File("a", 5)));
+    Item empty = new Directory("empty", MakeList()); // size 0
+    Directory result = addItemToDirectory(base, empty);
+    testEqual(calculateSize(base), calculateSize(result), 
+        "Adding an empty directory should not change total size.");
+}
+
 
 
 // 5. Finding an Item
@@ -391,7 +463,19 @@ void testCalculateSize_DeepNested() {
  *         or Nothing if no such item exists in the file 
  *         system rooted at initialItem.
  */
-//Maybe<[I]> findByName(String name, [I] initialItem)
+Maybe<Item> findByName(String name, Item initialItem) {
+    // Check the current node first
+    if (Equals(name, initialItem.name())) {
+        return new Something<Item>(initialItem);
+    }
+
+    // Otherwise, if it's a directory, search its children left-to-right
+    return switch(initialItem) {
+        case File(var name, var size) -> ;
+        case Directory(var name, var items) -> ;
+    };
+}
+
 
 
 void test() {
@@ -401,6 +485,7 @@ void test() {
     runAsTest(this::testIsDirectory_Directory);
     runAsTest(this::testIsDirectory_File);
     runAsTest(this::testMakeFile_SizeZero);
+    runAsTest(this::testMakeFile_HugeSize);
     runAsTest(this::testMakeEmptyDirectory_IsEmpty);
 
     // 3. addItemToDirectory tests
@@ -412,6 +497,12 @@ void test() {
     runAsTest(this::testCalculateSize_FlatDir);
     runAsTest(this::testCalculateSize_NestedDir);
     runAsTest(this::testCalculateSize_DeepNested);
+    runAsTest(this::testCalculateSize_FileZero);
+    runAsTest(this::testCalculateSize_FlatAllZero);
+    runAsTest(this::testCalculateSize_NestedEmptyDirsOnly);
+    runAsTest(this::testCalculateSize_LargeButWithinInt);
+    runAsTest(this::testCalculateSize_AddItemIncreasesByItemSize);
+    runAsTest(this::testCalculateSize_AddEmptyDirNoChange);
 }
 
 void main() {
