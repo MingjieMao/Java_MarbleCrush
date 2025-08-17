@@ -455,6 +455,7 @@ void testCalculateSize_AddEmptyDirNoChange() {
 // 5. Finding an Item
 /**
  * 1. Problem Analysis and Data Definitions
+ * We need to can find an item anywhere in a file system based on its name.
  * 2. Function Purpose Statement and Signature
  * Recursively searches the file system rooted at initialItem for an entry with the given name.
  * Returns the first match.
@@ -462,16 +463,19 @@ void testCalculateSize_AddEmptyDirNoChange() {
  * 3. Examples:
  *   - Given: findByName("a.txt", new File("a.txt", 1))
  *     Expect: Something(File("a.txt", 1))
- *   - Given: findByName("empty", new Directory("empty", [])) 
+ *   - Given: findByName("empty", new Directory("empty", MakeList()))
  *     Expect: Something(Directory("empty", []))
- *   - Given:  findByName("x", new Directory("root", []))
+ *   - Given:  findByName("x", new Directory("root", MakeList()))
  *     Expect: Nothing
- *   - Given:  findByName("n.txt", Directory("root", [ File("a",5), Directory("docs",[ File("n.txt",12) ]) ]))
+ *   - Given:  findByName("n.txt", Directory("root", MakeList(new File("a",5),
+ *                                                   new Directory("docs", MakeList(new File("n.txt",12))))))
  *     Expect: Something(File("n.txt",12))
- *   - Given duplicates: Directory("root", [ Directory("dup",[]), File("dup",9) ]), findByName("dup", root)
+ *   - Given duplicates: Directory("root", [ Directory("dup",[]), File("dup",9) ])
+ *                       findByName("dup", root)
  *     Expect: returns the Directory (the first match).
  * 4. Design Strategy: Template application and Combining functions
- * 5. Implementation
+ * 5. Implementation:
+ * Uses `Equals`  for String equality.
  * @param name The name of the file or directory to search for.
  * @param initialItem The file system item where the search should begin.
  * @return The first item found with the matching name, 
@@ -479,15 +483,35 @@ void testCalculateSize_AddEmptyDirNoChange() {
  */
 Maybe<Item> findByName(String name, Item initialItem) {
     return switch(initialItem) {
-        case File(var n, var size):
-            return (Equals(n, name) ? new Something<Item>(initialItem) 
-                                    : new Nothing<Item>());
-        case Directory(var n, var items):
-            return (Equals(n, name) ? new Something<Item>(initialItem) 
-                                    : findByNameInList(name, items));
+        case File(var n, var size) ->
+            Equals(n, name) ? new Something<Item>(initialItem) 
+                            : new Nothing<Item>();
+        case Directory(var n, var items) ->
+            Equals(n, name) ? new Something<Item>(initialItem) 
+                            : findByNameInList(name, items);
     };
 }
 
+/**
+ * 1. Problem Analysis and Data Design
+ * We need search a ConsList<Item> from left to right and return the first match.
+ * 2. Function Purpose Statement and Signature
+ * Maybe<Item> findByNameInList(String name, ConsList<Item> items)
+ * Returns the first matching item, or Nothing.
+ * 3. Examples:
+ *   - Given: name "x", items []
+ *     Expect: Nothing
+ *   - Given: name "a", items [ File("a",1), File("b",2) ]
+ *     Expect: Something(File("a",1)) 
+ *   - Given: name "n", items [ Directory("d",[File("n",3)]), File("n",4) ]
+ *     Expect: Something(File("n",3))
+ * 4. Design Strategy: 
+ * Template application and Combining functions
+ * 5. Implementation
+ * @param name  Target name to look for.
+ * @param items A ConsList<Item> (Nil or Cons).
+ * @return Something if a matching item is found in left-to-right order, otherwise Nothing.
+ */
 Maybe<Item> findByNameInList(String name, ConsList<Item> items) {
     return switch(items) {
         // Empty list: not found
@@ -496,21 +520,76 @@ Maybe<Item> findByNameInList(String name, ConsList<Item> items) {
          // Non-empty: search first (including its subtree); if found, return it; otherwise continue with rest
         case Cons<Item>(var first, var rest) -> 
             preferFirst(
-                findByName(name, first),         // search the first subtree
+                findByName(name, first),         // search the first item
                 findByNameInList(name, rest)     // then the rest of the list
             );
     };
 }
 
+/**
+ * 1. Problem Analysis and Data Design
+ * We have two Maybe<Item> and must choose the first that contains the value.
+ * 2. Function Purpose Statement and Signature
+ * Find the item based on its name, first search in a, otherwice b.
+ * Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b)
+ * 3. Examples:
+ *   - preferFirst(Something(x), Something(y)) => Something(x)
+ *   - preferFirst(Something(x), Nothing())    => Something(x)
+ *   - preferFirst(Nothing(), Something(y)) => Something(y)
+ *   - preferFirst(Nothing(), Nothing())    => Nothing()
+ *
+ * 4. Design Strategy: Case Distinction
+ * 5. Implementation
+ * @param a First item.
+ * @param b Rest items.
+ * @return Reture a when it is Something; otherwise b.
+ */
 Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b) {
     switch(a) {
-        case Something<Item>(var n):
-            return a;
-        case Nothing<Item>():
-            return b;
+        case Something<Item>(var n) -> a;
+        case Nothing<Item>() -> b;
     };
 }
 
+
+void testfindByName() {
+    // FileMatch: Should return Something(file)
+    Item file1 = new File("a.txt", 1);
+    testEqual(new Something<Item>(file1), findByName("a.txt", file1), "Should match a file with the same name at the root.");
+
+    // FileNoMatch: Should return Nothing
+    Item file2 = new File("a.txt", 1);
+    testEqual(new Nothing<Item>(), findByName("b.txt", file2), "Should NOT match a file with a different name.");
+
+    // DirectoryMatch: Should return Something(dir)
+    Item dir1 = new Directory("docs", new Nil<Item>());
+    testEqual(new Something<Item>(dir1), findByName("docs", dir1), "Should match a directory with the same name at the root.");
+
+    // RecursiveSearch: Should return Something(nestedFile)
+    Item nestedFile = new File("target.txt", 5);
+    Item dir2 = new Directory("docs", new Cons<Item>(nestedFile, new Nil<Item>()));
+    testEqual(new Something<Item>(nestedFile), findByName("target.txt", dir2),
+                "Should search recursively into children and find a nested file.");
+
+    // PreferDirectory: Should prefer the directory (first match)
+    Item file3 = new File("dup", 1);
+    Item dir3 = new Directory("dup", new Nil<Item>());
+    Item parent = new Directory("root", new Cons<Item>(dir3, new Cons<Item>(file3, new Nil<Item>())));
+    testEqual(new Something<Item>(dir3), findByName("dup", parent),
+                "When duplicates exist, should return the first match (the directory before the later file).");
+
+    // EmptyDirectory: Should return Nothing
+    Item dir4 = new Directory("empty", new Nil<Item>());
+    testEqual(new Nothing<Item>(), findByName("nonexistent", dir4),
+                "Searching an empty directory for a non-existent name should yield Nothing.");
+
+    // ComplexStructure: Should return that nested file
+    Item targetFile = new File("n.txt", 12);
+    Item docsDir = new Directory("docs", new Cons<Item>(targetFile, new Nil<Item>()));
+    Item root = new Directory("root", new Cons<Item>(new File("a", 5), new Cons<Item>(docsDir, new Nil<Item>())));
+    testEqual(new Something<Item>(targetFile), findByName("n.txt", root),
+                "Should find the nested file inside a deeper structure.");
+}
 
 
 void test() {
@@ -538,6 +617,11 @@ void test() {
     runAsTest(this::testCalculateSize_LargeButWithinInt);
     runAsTest(this::testCalculateSize_AddItemIncreasesByItemSize);
     runAsTest(this::testCalculateSize_AddEmptyDirNoChange);
+
+    // 5. cfindByName tests
+    runAsTest(this::testfindByName);
+    runAsTest(this::testfindByNameInList);
+    runAsTest(this::testPreferFirst);
 }
 
 void main() {
