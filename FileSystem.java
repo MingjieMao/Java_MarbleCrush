@@ -454,25 +454,60 @@ void testCalculateSize_AddEmptyDirNoChange() {
 
 // 5. Finding an Item
 /**
- * Recursively searches the file system rooted at 
- * initialItem for an entry with the given name.
- *
+ * 1. Problem Analysis and Data Definitions
+ * 2. Function Purpose Statement and Signature
+ * Recursively searches the file system rooted at initialItem for an entry with the given name.
+ * Returns the first match.
+ * Maybe<Item> findByName(String name, Item initialItem)
+ * 3. Examples:
+ *   - Given: findByName("a.txt", new File("a.txt", 1))
+ *     Expect: Something(File("a.txt", 1))
+ *   - Given: findByName("empty", new Directory("empty", [])) 
+ *     Expect: Something(Directory("empty", []))
+ *   - Given:  findByName("x", new Directory("root", []))
+ *     Expect: Nothing
+ *   - Given:  findByName("n.txt", Directory("root", [ File("a",5), Directory("docs",[ File("n.txt",12) ]) ]))
+ *     Expect: Something(File("n.txt",12))
+ *   - Given duplicates: Directory("root", [ Directory("dup",[]), File("dup",9) ]), findByName("dup", root)
+ *     Expect: returns the Directory (the first match).
+ * 4. Design Strategy: Template application and Combining functions
+ * 5. Implementation
  * @param name The name of the file or directory to search for.
  * @param initialItem The file system item where the search should begin.
  * @return The first item found with the matching name, 
- *         or Nothing if no such item exists in the file 
- *         system rooted at initialItem.
+ *         or Nothing if no such item exists in the file system rooted at initialItem.
  */
 Maybe<Item> findByName(String name, Item initialItem) {
-    // Check the current node first
-    if (Equals(name, initialItem.name())) {
-        return new Something<Item>(initialItem);
-    }
-
-    // Otherwise, if it's a directory, search its children left-to-right
     return switch(initialItem) {
-        case File(var name, var size) -> ;
-        case Directory(var name, var items) -> ;
+        case File(var n, var size):
+            return (Equals(n, name) ? new Something<Item>(initialItem) 
+                                    : new Nothing<Item>());
+        case Directory(var n, var items):
+            return (Equals(n, name) ? new Something<Item>(initialItem) 
+                                    : findByNameInList(name, items));
+    };
+}
+
+Maybe<Item> findByNameInList(String name, ConsList<Item> items) {
+    return switch(items) {
+        // Empty list: not found
+        case Nil<Item>() -> new Nothing<Item>();
+
+         // Non-empty: search first (including its subtree); if found, return it; otherwise continue with rest
+        case Cons<Item>(var first, var rest) -> 
+            preferFirst(
+                findByName(name, first),         // search the first subtree
+                findByNameInList(name, rest)     // then the rest of the list
+            );
+    };
+}
+
+Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b) {
+    switch(a) {
+        case Something<Item>(var n):
+            return a;
+        case Nothing<Item>():
+            return b;
     };
 }
 
