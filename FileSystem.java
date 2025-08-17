@@ -125,18 +125,6 @@ void testMakeEmptyDirectory_IsEmpty() {
     testEqual(true, isDirectory(dir), "makeEmptyDirectory() should create a directory.");
 }
 
-void test() {
-    // Tests for isFile, isDirectory, makeFile, makeEmptyDirectory function.
-    runAsTest(this::testIsFile_File);
-    runAsTest(this::testIsFile_Directory);
-    runAsTest(this::testIsDirectory_Directory);
-    runAsTest(this::testIsDirectory_File);
-    runAsTest(this::testMakeFile_SizeZero);
-    runAsTest(this::testMakeEmptyDirectory_IsEmpty);
-
-    // Tests for addItemToDirectory function.
-    runAsTest(this::testAddItemToDirectory);
-}
 
 
 // 3. Populating a Directory
@@ -229,31 +217,65 @@ void testAddItemToDirectory() {
     Directory dir1 = addItemToDirectory(dir0, fileA);
     testEqual(1, Length(dir1.items()), "After adding first file, length should be 1.");
     testEqual("a.txt", getNameAt(dir1.items(), 0), "First item should be a.txt.");
+    // Immutability: dir0 unchanged
+    testEqual(0, Length(dir0.items()), "dir0 must still be empty after creating dir1."); 
 
-    // Step 3: add file, b.txt
+    // Step 3: add file, b.txt (prepend)
     Item fileB = new File("b.txt", 900);
     Directory dir2 = addItemToDirectory(dir1, fileB);
     testEqual(2, Length(dir2.items()), "After adding second file, length should be 2.");
     testEqual("b.txt", getNameAt(dir2.items(), 0), "First item should now be b.txt (prepend).");
     testEqual("a.txt", getNameAt(dir2.items(), 1), "Second item should still be a.txt.");
+    // Immutability: dir1 unchanged
+    testEqual(1, Length(dir1.items()), "dir1 should still contain exactly one item after creating dir2."); 
+    testEqual("a.txt", getNameAt(dir1.items(), 0), "dir1 head remains a.txt.");
 
-    // Step 4: add directory, docs
+    // Step 4: add directory, docs (prepend)
     Item docs = new Directory("docs", MakeList(makeFile("notes.txt", 517)));
     Directory dir3 = addItemToDirectory(dir2, docs);
     testEqual(3, Length(dir3.items()), "After adding a directory, length should be 3.");
     testEqual("docs", getNameAt(dir3.items(), 0), "First item should now be docs (prepend).");
     testEqual("b.txt", getNameAt(dir3.items(), 1), "Second item should be b.txt.");
     testEqual("a.txt", getNameAt(dir3.items(), 2), "Third item should be a.txt.");
-
-    // Boundary: index far beyond list length should return the empty string.
-    testEqual("", getNameAt(dir3.items(), 99), "Out-of-bounds index should return empty string.");
-
-    // Boundary: negative index should also return the empty string.
-    testEqual("", getNameAt(dir3.items(), -1), "Negative index should return empty string.");
-
-    // Invariant: adding an item must not change the directory's name.
     testEqual("root", dir3.name(), "Directory name should remain unchanged.");
+    // Immutability: dir2 unchanged
+    testEqual(2, Length(dir2.items()), "dir2 should still contain two items after creating dir3.");
+    testEqual("b.txt", getNameAt(dir2.items(), 0), "dir2 head remains b.txt.");
+    testEqual("a.txt", getNameAt(dir2.items(), 1), "dir2 tail remains a.txt.");
+
+    // Step 5: add an empty subdirectory (prepend)
+    Item emptyDir = new Directory("empty", MakeList());
+    Directory dir4 = addItemToDirectory(dir3, emptyDir);
+    testEqual(4, Length(dir4.items()), "Adding an empty subdirectory should still increase the count.");
+    testEqual("empty", getNameAt(dir4.items(), 0), "New head should be the empty directory.");
+    testEqual("docs",  getNameAt(dir4.items(), 1), "Second should be docs.");
+    testEqual("b.txt", getNameAt(dir4.items(), 2), "Third should be b.txt.");
+    testEqual("a.txt", getNameAt(dir4.items(), 3), "Fourth should be a.txt.");
+    testEqual("root", dir4.name(), "Directory name should remain unchanged for the new directory too.");
+    // Immutability: dir3 unchanged
+    testEqual(3, Length(dir3.items()), "dir3 should still contain three items after creating dir4.");
+    testEqual("docs", getNameAt(dir3.items(), 0), "dir3 head remains docs.");
+
+    // Boundary tests: Empty list -> always ""
+    ConsList<Item> empty = MakeList();
+    testEqual("", getNameAt(empty, 0),  "Empty list: index 0 should return empty string.");
+    testEqual("", getNameAt(empty, -1), "Empty list: negative index should return empty string.");
+
+    // Boundary tests: Single-element list: index 0, index 1 out-of-bounds
+    ConsList<Item> one = MakeList(new File("solo.txt", 42));
+    testEqual("solo.txt", getNameAt(one, 0), "Single-element list index 0 should return the element.");
+    testEqual("", getNameAt(one, 1), "Single-element list index 1 is out-of-bounds -> empty string.");
+
+    // Boundary tests: Size-2 list: index equal to length is out-of-bounds
+    ConsList<Item> two = MakeList(new File("a.txt", 1), new File("b.txt", 2));
+    int len = Length(two);
+    testEqual("", getNameAt(two, len), "Index equal to length is out-of-bounds -> empty string.");
+
+    // Boundary tests: out-of-bounds / negative on a non-empty list
+    testEqual("", getNameAt(dir3.items(), 99), "Far out-of-bounds should return empty string.");
+    testEqual("", getNameAt(dir3.items(), -1), "Negative index should return empty string.");
 }
+
 
 
 // 4. Calculating Total Size
@@ -267,14 +289,15 @@ void testAddItemToDirectory() {
  * Returns the total size in bytes of a file-system item.
  * int calculateSize(Item item)
  * 3. Examples:
- *    - given: new File("a.txt", 1200)          
- *      expect: 1200
  *    - given: new Directory("empty", MakeList())               
  *      expect: 0
- *    - given: new Directory("ab", MakeList(new File("a", 3), new File("b", 7)))   
+ *    - given: new File("a.txt", 1200)         
+ *      expect: 1200
+ *    - given: new Directory("flat", MakeList(new File("a", 3), new File("b", 7)))   
  *      expect: 10
- *    - given: new Directory("abn", MakeList(new File("a", 5), 
- *                                         new Directory("docs", MakeList(new File("n.txt", 12))), new File("b", 8)))                               
+ *    - given: new Directory("nested", MakeList(new File("a", 5), 
+ *                                              new Directory("docs", MakeList(new File("n.txt", 12))), 
+ *                                              new File("b", 8)))                               
  *      expect: 25
  * 4. Design Strategy: Template application
  * 5. Implementation
@@ -288,22 +311,82 @@ int calculateSize(Item item) {
     };
 }
 
+/**
+ * 1. Problem Analysis and Data Definitions
+ * Helper function for ConsList<Item> that sums sizes of all elements recursively.
+ * 2. Function Purpose Statement and Signature
+ *  Calculate sum of ConsList<Item>.
+ * int sumSizes(ConsList<Item> items)
+ * 3. Examples:
+ *    - given: []                                 expect: 0
+ *    - given: [File("a", 1200)]                  expect: 1200
+ *    - given: [File("a", 1200), File("b", 3000)] expect: 4200
+ * 4. Design Strategy: Template application
+ * 5. Implementation
+ * @param items A ConsList<Item> of file system items.
+ * @return The sum of sizes of all items in bytes.
+ */
 int sumSizes(ConsList<Item> items) {
     return switch(items) {
-        case Nil<Item> -> 0;
-        case Cons<Item>(var first, var items) -> calculateSize(first) + sumSizes(rest);
+        case Nil<Item>() -> 0;
+        case Cons<Item>(var first, var rest) -> calculateSize(first) + sumSizes(rest);
     };
 }
 
-// 5. Finding an Item#
+// tests: file returns its own size
+void testCalculateSize_File() {
+    Item f = new File("a.txt", 1200);
+    testEqual(1200, calculateSize(f), "A file's size should be its stored size.");
+}
+
+// tests: empty directory is size 0
+void testCalculateSize_EmptyDir() {
+    Item d = new Directory("empty", MakeList());
+    testEqual(0, calculateSize(d), "Empty directory size should be 0.");
+}
+
+// tests: flat directory sum
+void testCalculateSize_FlatDir() {
+    Item flat = new Directory("flat", MakeList(new File("a", 3), new File("b", 7)));
+    testEqual(10, calculateSize(flat), "Flat directory size should be sum of files (3+7).");
+}
+
+// tests: single nested directory
+void testCalculateSize_NestedDir() {
+    Item nested = new Directory("nested",
+            MakeList(
+                new File("a", 5),
+                new Directory("docs", MakeList(new File("n.txt", 12))),
+                new File("b", 8)
+            ));
+    testEqual(25, calculateSize(nested), "Nested directory size should be 5 + 12 + 8 = 25.");
+}
+
+// tests: deeper nesting
+void testCalculateSize_DeepNested() {
+    Item deep = new Directory("root",
+            MakeList(
+                new File("a", 1),
+                new Directory("L1", MakeList(
+                    new File("b", 2),
+                    new Directory("L2", MakeList(
+                        new File("c", 3),
+                        new Directory("L3", MakeList(new File("d", 4)))
+                    ))
+                ))
+            ));
+    testEqual(10, calculateSize(deep), "Deeply nested size should sum all leaf files, which should be 1+2+3+4 = 10.");
+}
+
+
+
+// 5. Finding an Item
 /**
  * Recursively searches the file system rooted at 
  * initialItem for an entry with the given name.
  *
- * @param name The name of the file or directory 
- *             to search for.
- * @param initialItem The file system item where the search 
- *                    should begin.
+ * @param name The name of the file or directory to search for.
+ * @param initialItem The file system item where the search should begin.
  * @return The first item found with the matching name, 
  *         or Nothing if no such item exists in the file 
  *         system rooted at initialItem.
@@ -311,6 +394,27 @@ int sumSizes(ConsList<Item> items) {
 //Maybe<[I]> findByName(String name, [I] initialItem)
 
 
+void test() {
+    // 2. isFile, isDirectory, makeFile, makeEmptyDirectory tests
+    runAsTest(this::testIsFile_File);
+    runAsTest(this::testIsFile_Directory);
+    runAsTest(this::testIsDirectory_Directory);
+    runAsTest(this::testIsDirectory_File);
+    runAsTest(this::testMakeFile_SizeZero);
+    runAsTest(this::testMakeEmptyDirectory_IsEmpty);
+
+    // 3. addItemToDirectory tests
+    runAsTest(this::testAddItemToDirectory);
+
+    // 4. calculateSize tests
+    runAsTest(this::testCalculateSize_File);
+    runAsTest(this::testCalculateSize_EmptyDir);
+    runAsTest(this::testCalculateSize_FlatDir);
+    runAsTest(this::testCalculateSize_NestedDir);
+    runAsTest(this::testCalculateSize_DeepNested);
+}
+
 void main() {
+    CheckVersion("2025S1-7");
     test();
 }
