@@ -2,7 +2,7 @@ time-on-task:
 - task: "Part 1"
   time: 490
 - task: "Part 2"
-  time: 170
+  time: 230
 sessions: 
 - start: 2025-08-15 18:30
   end: 2025-08-15 19:30
@@ -37,3 +37,6 @@ sessions:
 - start: 2025-08-20 00:50
   end: 2025-08-20 01:50
   notes: "worked on mouseEvent"
+- start: 2025-08-20 01:50
+  end: 2025-08-20 02:50
+  notes: "worked on MarbleCrush"

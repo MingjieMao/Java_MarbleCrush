@@ -32,7 +32,7 @@ MarbleColour randomColour() {
         case 0 -> MarbleColour.BLUE;
         case 1 -> MarbleColour.RED;
         case 2 -> MarbleColour.GREEN;
-        default -> MarbleColour.BLACK;
+        case 3 -> MarbleColour.BLACK;
     };
 }
 
@@ -61,8 +61,7 @@ Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
     return switch (listOfMarbles) {
         case Nil<Marble>() -> bg;
         case Cons<Marble>(var first, var rest) -> 
-            Image next = PlaceXY(bg, Circle(marbleRadius, first.colour()), first.x(), first.y());
-            renderMarbles(rest, next);
+            drawMarbles(rest, PlaceXY(bg, Circle(marbleRadius, first.colour()), first.x(), first.y()));
     };
 }
 
@@ -83,7 +82,7 @@ ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPosi
         case Nil<Pair<Integer,Integer>>() -> acc;
         case Cons<Pair<Integer,Integer>>(var first, var rest) -> 
             marblesFromPositions(rest, Append(acc, MakeList(new Marble(first.left(), first.right(), randomColour()))));
-    }
+    };
 }
 
 /**
@@ -147,27 +146,82 @@ WorldState onLeftClick(WorldState w, MouseEvent mouseEvent) {
     };
 }
 
+/** 5.1.1 Hit detection (using the assignment’s "bounding box" rule: center ± R) */
+Maybe<Marble> findClickedMarble(MouseEvent mouseEvent, ConsList<Marble> list) {
+  return switch (list) {
+    case Nil<Marble>() -> new Nothing<>();
+    case Cons<Marble>(Marble first, ConsList<Marble> rest) -> 
+      (mouseEvent.mx() >= first.x() - marbleRadius) && 
+      (mouseEvent.mx() <= first.x() + marbleRadius) &&
+      (mouseEvent.my() >= first.y() - marbleRadius) && 
+      (mouseEvent.my() <= first.y() + marbleRadius)
+        ? new Something<Marble>(first)
+        : findClickedMarble(mouseEvent, rest);
+  };
+}
 
-
-
-
-
-WorldState keyEvent(WorldState w, KeyEvent keyEvent) {
-    return switch (keyEvent.kind()) {
-        case KEY_PRESSED -> ;
-        default -> w;
-    };
+/** 5.1.2 Filter out all marbles of the same colour as the target (recursive, left → right) */
+ConsList<Marble> filterOutSameColour(Marble target, ConsList<Marble> current) {
+  return switch (current) {
+    case Nil<Marble>() -> MakeList();
+    case Cons<Marble>(var first, var rest) -> 
+      (Equals(first.colour(), target.colour())) 
+        ? filterOutSameColour(target, rest)
+        : Append(MakeList(first), filterOutSameColour(target, rest));
+  };
 }
 
 
+WorldState keyEvent(World w, KeyEvent keyEvent) {
+    return processKeyEvent(w, keyEvent.kind(), keyEvent.key());
+}
 
 /**
- * returns Something with the marble at pixel coordinate (x, y) 
- * or Nothing if no marble is there
+ * 4.1 
+ * Handle SPACE key:
+ * - Find all vacant positions → findVacancies
+ * - Place new marbles into these vacancies → addMarblesAtVacancies
+ * - Return the updated WorldState
+ * - Otherwise return the original state (unchanged).
  */
-Maybe<Marble> getMarbleAt(WorldState w, int x, int y) {
-    return ;
+WorldState processKeyEvent(WorldState w, KeyEvent keyEvent) {
+  if (keyEvent.kind() == KeyEventKind.KEY_DOWN && Equals(keyEvent.key(), "SPACE")) {
+    var vacancies = findVacancies(w.marbles());
+    var added = addMarblesAtVacancies(vacancies, w.marbles());
+    return new WorldState(added);
+  } else {
+    return w;
+  }
 }
+
+/** 
+ * Find vacancies:
+ * - allPositions → all possible coordinates (generated recursively).
+ * - occupiedPositions → coordinates of existing marbles.
+ * - subtractPositions → set difference (all − occupied), giving the vacant positions.
+*/
+ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
+  var allPositions = generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleCols, numMarbleCols);
+  var occupiedPositions = positionsFromMarbles(listOfMarbles);
+  return subtractPositions(allPositions, occupiedPositions); 
+}
+
+/**
+ * Base case: if the marble list is empty (Nil), return an empty list of coordinates.
+ * Recursive case: if there is a Cons node (i.e., one marble + the remaining list):
+ *   - Take the current marble’s (x, y) coordinates and wrap them into a Pair.
+ *   - Use Append to add this coordinate to the front of the recursive result.
+ *   - Recursively call positionsFromMarbles(remainingMarbles) until all marbles are processed.
+ * In other words, this function converts all Marble objects into their coordinate list.
+ */
+ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
+  return switch (marbles) {
+    case Nil<Marble>() -> EmptyPosList();
+    case Cons<Marble>(var first, var rest) ->
+      Append(MakeList(new Pair<Integer,Integer>(first.x(), first.y())), positionsFromMarbles(rest));
+  };
+}
+
 
 /**
  * returns the colour of a given marble
@@ -176,22 +230,25 @@ MarbleColour getColour(Marble m) {
     return m.colour();
 }
 
-/**
- * returns the number of marbles of a given colour
- */
-int numberOfMarblesOfColour(WorldState w, MarbleColour c) {
-    return ;
+// returns the number of marbles of a given colour
+int numberOfMarblesOfColour(WorldState w, MarbleColour colour) {
+  return countColour(w.marbles(), colour);
+}
+
+int countColour(ConsList<Marble> marbles, MarbleColour colour) {
+  return switch (marbles) {
+    case Nil<Marble>() -> 0;
+    case Cons<Marble>(var first, var rest) ->
+      (Equals(first.colour(), colour) ? 1 : 0) + countColour(rest, colour);
+  };
 }
 
 /**
  * returns the number of empty locations in the grid of marbles
  */
 int numberOfEmptyLocations(WorldState w) {
-    return ;
+  return Length(findVacancies(w.marbles()));
 }
-
-
-
 
 void main() {
     BigBang("Marble Crush", getInitialState(), this::draw, this::step, this::keyEvent, this::mouseEvent);
