@@ -12,44 +12,146 @@ int WORLD_WIDTH = 300;
 int WORLD_HEIGHT = 500;
 
 /* Radius of the balls */
-int BALL_RADIUS = 10;
-int BALL_DIAM = BALL_RADIUS * 2;
-int WORLD_COLS = WORLD_WIDTH / DIAM;   // 15 columns
-int WORLD_ROWS = WORLD_HEIGHT / DIAM;  // 25 rows
+int RADIUS = 10;
+int ROWS = 25;
+int COLS = 15;
 
 /**
  * [C]: our own colour enumeration for marbles (not the Universe Colour)
  */
-enum ColourC { 
+enum MarbleColour { 
     BLUE, 
     RED, 
     GREEN, 
     BLACK 
 }
 
-ColourC randomColour() {
+MarbleColour randomColour() {
     int r = RandomNumber(0,4);
     return switch (r) {
-        case 0 -> ColourC.BLUE;
-        case 1 -> ColourC.RED;
-        case 2 -> ColourC.GREEN;
-        default -> ColourC.BLACK;
+        case 0 -> MarbleColour.BLUE;
+        case 1 -> MarbleColour.RED;
+        case 2 -> MarbleColour.GREEN;
+        default -> MarbleColour.BLACK;
     };
 }
-
 
 /**
  * [M]: a marble with its centre (x,y) in pixels and a colour
  */
-record Marble(int x, int y, ColourC colour) {}
+record Marble(int x, int y, MarbleColour colour) {}
 
 
 /**
  * [W]: world state is just the list of marbles currently present
  */
-record World(ConsList<Marble> marbles) {}
+record WorldState(ConsList<Marble> marbles) {}
 
 
+WorldState step(WorldState w) {
+    return w;
+}
+
+Image draw(WorldState w) {
+    Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE());
+    return drawList(w.marbles(), bg);
+}
+
+Image drawList(ConsList<Marble> ms, Image base) {
+    return switch (ms) {
+        case Nil<Marble>() -> base;
+        case Cons<Marble>(var h, var t) -> ;
+    };
+}
+
+WorldState mouseEvent(WorldState w, MouseEvent mouseEvent) {
+    return switch (mouseEvent.kind()) {
+        case LEFT_CLICKED -> ;
+        default -> w;
+    };
+}
+
+WorldState keyEvent(WorldState w, KeyEvent keyEvent) {
+    return switch (keyEvent.kind()) {
+        case KEY_PRESSED -> ;
+        default -> w;
+    };
+}
+
+/**
+ * 
+ */
+WorldState getInitialState() {
+    var positions = buildAllGridCenters(RADIUS, ROWS, COLS);
+    var marbles   = marblesFromPositions(positions, EmptyMarbleList());
+    return new WorldState(marbles);
+}
+
+/**
+ * 
+ */
+ConsList<Pair<Integer,Integer>> buildAllGridCenters(int radius, int rows, int cols) {
+    return buildAllGridCentersRec(radius, 0, 0, rows, cols, EmptyList());
+}
+
+ConsList<Pair<Integer,Integer>> buildAllGridCentersRec(
+    int radius, int row, int col, int rows, int cols, ConsList<Pair<Integer,Integer>> acc) {
+        if (row >= rows) {
+            return acc;
+        }
+        int diameter = radius * 2;
+        int x = radius + col * diameter;
+        int y = radius + row * diameter;
+        var nextAcc = Append(acc, MakeList(new Pair<Integer,Integer>(x, y)));
+        int nextCol = col + 1;
+        int nextRow = row;
+        if (nextCol >= cols) {
+            nextCol = 0;
+            nextRow = row + 1;
+        }
+    return buildAllGridCentersRec(radius, nextRow, nextCol, rows, cols, nextAcc);
+}
+
+/**
+ * 
+ */
+ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPositions, ConsList<Marble> acc) {
+    return switch (listOfPositions) {
+        case Nil<Pair<Integer,Integer>>() -> acc;
+        case Cons<Pair<Integer,Integer>>(var first, var rest) -> 
+            marblesFromPositions(rest, Append(acc, MakeList(new Marble(first.left(), first.right(), randomColour()))));
+    }
+}
+
+
+/**
+ * returns Something with the marble at pixel coordinate (x, y) 
+ * or Nothing if no marble is there
+ */
+Maybe<Marble> getMarbleAt(WorldState w, int x, int y) {
+    return ;
+}
+
+/**
+ * returns the colour of a given marble
+ */
+MarbleColour getColour(Marble m) {
+    return m.colour();
+}
+
+/**
+ * returns the number of marbles of a given colour
+ */
+int numberOfMarblesOfColour(WorldState w, MarbleColour c) {
+    return ;
+}
+
+/**
+ * returns the number of empty locations in the grid of marbles
+ */
+int numberOfEmptyLocations(WorldState w) {
+    return ;
+}
 
 /**
 * Generates a list of pairs with the coordinates of the centers of the marbles 
@@ -84,72 +186,6 @@ ConsList<Pair<Integer,Integer>> generateAllMarblesCenterPositionRecursively(int 
     }
     return outputList;
 }
-
-
-
-World step(World w) {
-    return w;
-}
-
-Image draw(World w) {
-    Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE());
-    return drawList(w.marbles(), bg);
-}
-
-Image drawList(ConsList<Marble> ms, Image base) {
-    return switch (ms) {
-        case Nil<Marble>() -> base;
-        case Cons<Marble>(var h, var t) -> ;
-    };
-}
-
-World mouseEvent(World w, MouseEvent mouseEvent) {
-    return switch (mouseEvent.kind()) {
-        case LEFT_CLICKED -> ;
-        default -> w;
-    };
-}
-
-World keyEvent(World w, KeyEvent keyEvent) {
-    return switch (keyEvent.kind()) {
-        case KEY_PRESSED -> ;
-        default -> w;
-    };
-}
-
-World getInitialState() {
-    return ;
-}
-
-/**
- * returns Something with the marble at pixel coordinate (x, y) 
- * or Nothing if no marble is there
- */
-Maybe<Marble> getMarbleAt(World w, int x, int y) {
-    return ;
-}
-
-/**
- * returns the colour of a given marble
- */
-ColourC getColour(Marble m) {
-    return m.colour();
-}
-
-/**
- * returns the number of marbles of a given colour
- */
-int numberOfMarblesOfColour(World w, ColourC c) {
-    return ;
-}
-
-/**
- * returns the number of empty locations in the grid of marbles
- */
-int numberOfEmptyLocations(World w) {
-    return ;
-}
-
 
 
 
