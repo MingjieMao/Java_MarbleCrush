@@ -2,7 +2,7 @@ time-on-task:
 - task: "Part 1"
   time: 490
 - task: "Part 2"
-  time: 470
+  time: 530
 sessions: 
 - start: 2025-08-15 18:30
   end: 2025-08-15 19:30
@@ -52,3 +52,6 @@ sessions:
 - start: 2025-08-21 00:20
   end: 2025-08-21 01:20
   notes: "add some annotations"
+- start: 2025-08-21 01:20
+  end: 2025-08-21 02:20
+  notes: "continue add some annotations"

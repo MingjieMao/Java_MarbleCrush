@@ -17,7 +17,8 @@ int numMarbleRows = 25;
 int numMarbleCols = 15;
 
 /**
- * [C]: our own colour enumeration for marbles (not the Universe Colour)
+ * [C]: Define our own colour enumeration for marbles.
+ * Each marble in the game must have one of these four colours.
  */
 enum MarbleColour { 
     BLUE, 
@@ -27,7 +28,18 @@ enum MarbleColour {
 }
 
 /**
+ * Generate a random marble colour from the four available colours.
+ * Each colour is equally likely to be chosen.
  * 
+ * Examples:
+ *   - If RandomNumber returns 0, MarbleColour.BLUE
+ *   - If RandomNumber returns 1, MarbleColour.RED
+ *   - If RandomNumber returns 2, MarbleColour.GREEN
+ *   - If RandomNumber returns 3, MarbleColour.BLACK
+ * 
+ * Design Strategy: Case distinction
+ * 
+ * @return a randomly chosen MarbleColour (BLUE, RED, GREEN, or BLACK)
  */
 MarbleColour randomColour() {
     int r = RandomNumber(0,4);
@@ -39,6 +51,22 @@ MarbleColour randomColour() {
     };
 }
 
+/**
+ * Convert our MarbleColour enum into the Universe Colour type,
+ * so that marbles can be drawn on the screen.
+ * This acts as a bridge between the MarbleColour and Colour.
+ *
+ * Examples:
+ *   - convertToColour(MarbleColour.BLUE)   -> Colour.BLUE
+ *   - convertToColour(MarbleColour.RED)    -> Colour.RED
+ *   - convertToColour(MarbleColour.GREEN)  -> Colour.GREEN
+ *   - convertToColour(MarbleColour.BLACK)  -> Colour.BLACK
+ *
+ * Design Strategy: Case distinction
+ *
+ * @param marbleColour the MarbleColour fron enum
+ * @return the corresponding Universe Colour used for drawing
+ */
 Colour convertToColour(MarbleColour marbleColour) {
     return switch (marbleColour) {
         case BLUE -> Colour.BLUE;
@@ -50,6 +78,16 @@ Colour convertToColour(MarbleColour marbleColour) {
 
 /**
  * [M]: a marble with its centre (x,y) in pixels and a colour
+ * A Marble is represented by a record that contains its position
+ * on the screen and its colour.
+ * 
+ * Examples:
+ * - marble(50, 100, BLUE)
+ * - marble(200, 150, RED)
+ *
+ * @param x the x-coordinate of the marble's centre in pixels (non-negative)
+ * @param y the y-coordinate of the marble's centre in pixels (non-negative)
+ * @param colour the MarbleColour of the marble (BLUE, RED, GREEN, BLACK)
  */
 record Marble(int x, int y, MarbleColour colour) {}
 /**
@@ -71,13 +109,44 @@ WorldState step(WorldState w) {
 }
 
 /**
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Draw the entire world by starting from a white background,
+ *   and then drawing all marbles on top of it.
  * 
+ * Examples:
+ *   - If w has no marbles, returns just a white background.
+ *   - If w has some marbles, returns background plus those marbles.
+ * 
+ * Design Strategy: Combining functions
+ * 
+ * @param w the current WorldState containing all marbles
+ * @return an Image with background and all marbles drawn
  */
 Image draw(WorldState w) {
     Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE);
     return drawMarbles(w.marbles(), bg);
 }
 
+/**
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Draw all marbles in a list on background image.
+ *   Each marble is drawn as a coloured circle at its (x, y) coordinate.
+ * 
+ * Examples:
+ *   - If listOfMarbles is Nil, returns bg unchanged.
+ * 
+ *   - If listOfMarbles has one marble (x=10, y=20, red),
+ *     returns bg with a red circle drawn at (10, 20).
+ * 
+ *   - If listOfMarbles has multiple marbles,
+ *       recursively draws each marble on bg.
+ * 
+ * @param listOfMarbles a ConsList of marbles to be drawn
+ * @param bg the background image on which marbles will be placed
+ * @return an Image with all marbles drawn on top of the background
+ */
 Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
     return switch (listOfMarbles) {
         case Nil<Marble>() -> bg;
@@ -87,7 +156,19 @@ Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
 }
 
 /**
- * returns the initial state of your world
+ * Construct and return the initial state of the world.
+ * The world starts with a full grid of marbles placed at regularly spaced positions.
+ * 
+ * Examples:
+ *   - If numMarbleRows = 0 or numMarbleCols = 0，
+ *     returns a WorldState with an empty marble list.
+ * 
+ *   - If numMarbleRows = 2 and numMarbleCols = 3,
+ *     returns a WorldState with 6 marbles placed in a 2×3 grid.
+ * 
+ * Design Strategy: Combining functions
+ * 
+ * @return a WorldState containing all marbles
  */
 WorldState getInitialState() {
     ConsList<Pair<Integer,Integer>> positions = 
@@ -97,18 +178,32 @@ WorldState getInitialState() {
 }
 
 /**
+ * Convert a list of marble center positions into a list of Marble objects.
+ *   Each position (x, y) becomes a Marble with a randomly assigned colour.
  * 
+ * Examples:
+ *   - If Nil, returns acc (no new marbles to add).
+ *   - If listOfPositions = [(10,20)] and acc = [],
+ *       returns [Marble(10,20,colour)] with random colour.
+ *   - If listOfPositions = [(10,20), (30,40)] and acc = [],
+ *       returns [Marble(10,20,colour), Marble(30,40,colour)] with random colours.
+ * 
+ * Design Strategy: Template application
+ * 
+ * @param listOfPositions A list of (x, y) coordinate pairs for marbles
+ * @param acc             An accumulator list of already-created marbles
+ * @return                A ConsList<Marble> containing all marbles from the given positions
  */
 ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPositions, ConsList<Marble> acc) {
     return switch (listOfPositions) {
         case Nil<Pair<Integer,Integer>>() -> acc;
-        case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> p, ConsList<Pair<Integer,Integer>> rest) -> 
-            marblesFromPositions(rest, Append(acc, MakeList(new Marble(p.first(), p.second(), randomColour()))));
+        case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> position, ConsList<Pair<Integer,Integer>> rest) -> 
+            marblesFromPositions(rest, Append(acc, MakeList(new Marble(position.first(), position.second(), randomColour()))));
     };
 }
 
 /**
- * 1. Handle SPACE key
+ * 1. Handle keyEvent
  * Problem analysis and data design
  * Function purpose statement and signature
  * - Handle a keyboard event on the world state.  
