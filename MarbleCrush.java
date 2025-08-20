@@ -185,18 +185,23 @@ ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
 }
 
 /**
-* 1.1.1 Generates a list of pairs with the coordinates of the centers of the marbles 
-* laid out in a two-dimensional grid of marbles with numMarbleRows rows and numMarbleCols columns. 
-* The marbles are positioned to be touching the adjacent marbles in the grid, 
-* with no space in between them and no overlapping. 
-* The positions of the marble centers are ordered in row-major order,i.e., first by rows, and then by columns. 
-* The origin of coordinates is assumed to be placed in the lower left corner of 
-* the bounding box of the marble positioned in the lower left corner of the grid of marbles. 
-* The x-axis points right, and the y-axis points down.
-* Design strategy: Iteration (week 5/6)
+* 1.1.1 
+* Problem analysis and data design
+* Function purpose statement and signature
+* - Generates a list of pairs with the coordinates of the centers of the marbles 
+*   laid out in a two-dimensional grid of marbles with numMarbleRows rows and numMarbleCols columns. 
+* - The marbles are positioned to be touching the adjacent marbles in the grid, 
+*   with no space in between them and no overlapping. 
+* - The positions of the marble centers are ordered in row-major order,i.e., 
+*   first by rows, and then by columns. 
+* - The x-axis points right, and the y-axis points down.
+* 
 * Example:
 *   - Given: marbleRadius=10, numMarbleRows=2, numMarbleCols=3
 *   - Expect: [(10,10),(30,10),(50,10),(10,30),(30,30),(50,30)]
+* 
+* Design strategy: Case distinction (Recursion) and Combining functions
+
 * @param marbleRadius The radius of the marble in pixels (>0)
 * @param numMarbleRows The number of rows in the 2D grid of marbles (>0)
 * @param numMarbleCols The number of columns in the 2D grid of marbles (>0)
@@ -206,6 +211,26 @@ ConsList<Pair<Integer,Integer>> generateAllMarblesCenterPositionRecursively(int 
     return generateAllGridCentersRecursively(marbleRadius, 0, 0, numMarbleRows, numMarbleCols, MakeList());
 }
 
+/**
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Recursive helper to generate marble center coordinates row by row.  
+ * - Uses accumulator to build the list increasely.
+ * 
+ * Example:
+ *   - Given: marbleRadius=10, numMarbleRows=2, numMarbleCols=3
+ *   - Expect: [(10,10),(30,10),(50,10),(10,30),(30,30),(50,30)]
+ * 
+ * Design Strategy: Case distinction (Recursion) and Combining functions
+ * 
+ * @param marbleRadius the radius of each marble
+ * @param row current row index (0-based)
+ * @param col current column index (0-based)
+ * @param numMarbleRows total rows
+ * @param numMarbleCols total cols
+ * @param acc accumulated positions so far
+ * @return completed ConsList of positions after traversal
+ */
 ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
     int marbleRadius, int row, int Col, int numMarbleRows, int numMarbleCols, ConsList<Pair<Integer,Integer>> acc) {
         if (row >= numMarbleRows) {
@@ -221,30 +246,63 @@ ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
             nextCol = 0;
             nextRow = row + 1;
         }
-    return generateAllGridCentersRecursively(marbleRadius, nextRow, nextCol, numMarbleRows, numMarbleCols, nextAcc);
+        return generateAllGridCentersRecursively(marbleRadius, nextRow, nextCol, numMarbleRows, numMarbleCols, nextAcc);
 }
 
 /**
- * 1.1.2 Base case: if the marble list is empty (Nil), return an empty list of coordinates.
- * Recursive case: if there is a Cons node (i.e., one marble + the remaining list):
- *   - Take the current marble’s (x, y) coordinates and wrap them into a Pair.
- *   - Use Append to add this coordinate to the front of the recursive result.
- *   - Recursively call positionsFromMarbles(remainingMarbles) until all marbles are processed.
- * In other words, this function converts all Marble objects into their coordinate list.
- *
+ * 1.1.2 
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Convert a list of Marble into a list of (x,y) coordinate pairs.  
+ *   Preserves the original left-to-right order.
+ * - Base case: if the marble list is empty (Nil), return an empty list of coordinates.
+ * - Recursive case: if there is a Cons node (i.e., one marble + the remaining list):
+ *   Take the current marble’s (x, y) coordinates and wrap them into a Pair.
+ *   Use Append to add this coordinate to the front of the recursive result.
+ *   Recursively call positionsFromMarbles(remainingMarbles) until all marbles are processed.
+ * 
+ * Examples:
+ * - Given: (Empty list) positionsFromMarbles(Nil())
+ *   Expect: Nil()
+ * - Given: m1 = Marble(10, 20, Red), positionsFromMarbles(MakeList(m1))
+ *   Expect: [(10,20)]
+ * - Given: m1 = Marble(10, 10, Red), m2 = Marble(30, 10, Blue), m3 = Marble(50, 10, Green)
+ *          positionsFromMarbles(MakeList(m1, m2, m3))
+ *   Expect: [(10,10), (30,10), (50,10)]
+ * 
+ * Design Strategy: Template application（Recursion）
+ * 
+ * @param marbles the list of marbles (ConsList<Marble>)
+ * @return a ConsList<Pair<Integer,Integer>> of (x,y) centers
  */
 ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
   return switch (marbles) {
     case Nil<Marble>() -> MakeList();
-    case Cons<Marble>(var m, var rest) -> 
-        Append(MakeList(new Pair<Integer,Integer>(m.x(), m.y())), positionsFromMarbles(rest));
+    case Cons<Marble>(var marble, var rest) -> 
+        Append(MakeList(new Pair<Integer,Integer>(marble.x(), marble.y())), positionsFromMarbles(rest));
   };
 }
 
 /** 
- * 1.1.3 allPositions - occupiedPositions → produces the list of vacant positions.
- * Base case: no remaining positions.
- * Recursive case: current position + remaining positions.
+ * 1.1.3 
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Compute the list of vacant positions by subtracting occupied coordinates from all possible coordinates    
+ *   Traverses allPositions recursively and excludes any position found in occupiedPositions.
+ * - Base case: no remaining positions.
+ * - Recursive case: current position + remaining positions.
+ * 
+ * Examples:
+ * - Given: allPositions = [(10,10), (30,10), (50,10)]  
+ *          occupiedPositions = [(30,10)]  
+ *          subtractPositions(all, occupied) 
+ *   Expect: [(10,10), (50,10)]
+ * 
+ * Design Strategy: Structural Template Application (Recursion on ConsList)
+ * 
+ * @param allPositions all possible grid positions (ConsList<Pair<Integer,Integer>>)  
+ * @param occupiedPositions coordinates of marbles currently present (ConsList<Pair<Integer,Integer>>)  
+ * @return a ConsList<Pair<Integer,Integer>> of positions that are vacant
  */
 ConsList<Pair<Integer,Integer>> subtractPositions(ConsList<Pair<Integer,Integer>> allPositions, 
                                                   ConsList<Pair<Integer,Integer>> occupiedPositions) {
