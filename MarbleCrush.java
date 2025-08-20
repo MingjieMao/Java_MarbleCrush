@@ -19,34 +19,52 @@ int numMarbleCols = 15;
 /**
  * [C]: our own colour enumeration for marbles (not the Universe Colour)
  */
-enum Colour  { 
+enum MarbleColour { 
     BLUE, 
     RED, 
     GREEN, 
     BLACK 
 }
 
-Colour randomColour() {
+/**
+ * 
+ */
+MarbleColour randomColour() {
     int r = RandomNumber(0,4);
-    return switch (r) {
-        case 0 -> Colour.BLUE;
-        case 1 -> Colour.RED;
-        case 2 -> Colour.GREEN;
-        case 3 -> Colour.BLACK;
+    return switch(r) {
+        case 0 -> MarbleColour.BLUE;
+        case 1 -> MarbleColour.RED;
+        case 2 -> MarbleColour.GREEN;
+        default -> MarbleColour.BLACK;
+    };
+}
+
+Colour convertToColour(MarbleColour marbleColour) {
+    return switch (marbleColour) {
+        case BLUE -> Colour.BLUE;
+        case RED -> Colour.RED;
+        case GREEN -> Colour.GREEN;
+        case BLACK -> Colour.BLACK;
     };
 }
 
 /**
  * [M]: a marble with its centre (x,y) in pixels and a colour
  */
-record Marble(int x, int y, Colour colour) {}
-
+record Marble(int x, int y, MarbleColour colour) {}
+/**
+ * ... marble.x() ...
+ * ... marble.y() ...
+ * ... marble.colour() ...
+ */
 
 /**
  * [W]: world state is just the list of marbles currently present
  */
 record WorldState(ConsList<Marble> marbles) {}
-
+/**
+ * ... w.marbles() ...
+ */
 
 WorldState step(WorldState w) {
     return w;
@@ -61,7 +79,7 @@ Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
     return switch (listOfMarbles) {
         case Nil<Marble>() -> bg;
         case Cons<Marble>(var first, var rest) -> 
-            drawMarbles(rest, PlaceXY(bg, Circle(marbleRadius, first.colour()), first.x(), first.y()));
+            drawMarbles(rest, PlaceXY(bg, Circle(marbleRadius, convertToColour(first.colour())), first.x(), first.y()));
     };
 }
 
@@ -86,7 +104,88 @@ ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPosi
 }
 
 /**
-* Generates a list of pairs with the coordinates of the centers of the marbles 
+ * 1. Handle SPACE key
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Handle a keyboard event on the world state.  
+ * - If the SPACE key is pressed, generate new marbles at all vacant positions;  
+ * - Otherwise, leave the world unchanged.
+ * 
+ * Examples:
+ * - We have a world with has 300 marbles and 75 vacancies, total 15*25=375 marbles.
+ *   Pressing SPACE, return a new world with 375 marbles.
+ *   Pressing any other key, return w unchanged.
+ * 
+ * Design Strategy: Case Distinction (on KeyEvent)
+ * 
+ * @param w the current WorldState
+ * @param keyEvent the keyboard event to handle
+ * @return a new WorldState reflecting the event
+ */
+WorldState keyEvent(WorldState w, KeyEvent keyEvent) {
+    println("keyEvent kind: " + keyEvent.kind());
+    println("Current marble count: " + Length(w.marbles()));
+    return processKeyEvent(w, keyEvent.kind(), keyEvent.key());
+}
+
+/**
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Handle a keyboard event on the world state.  
+ * - If the SPACE key is pressed, firstly we need to find vacancies, 
+ *   than add new marbles to the vacancies,
+ *   finally get new marbles at all vacant positions;  
+ * - Otherwise, leave the world unchanged.
+ * 
+ * Examples:
+ * - Given: processKeyEvent(w, KEY_PRESSED, "Space") 
+ *   Expect: new WorldState with added marbles
+ * 
+ * Design Strategy: Case Distinction
+ * 
+ * @param w the current WorldState
+ * @param keyEvent the keyboard event to handle
+ * @param key the actual key string (e.g., "Space")
+ * @return a new WorldState after applying the event
+ */
+WorldState processKeyEvent(WorldState w, KeyEventKind keyEventKind, String key) {
+    boolean isSpace = (keyEventKind == KeyEventKind.KEY_PRESSED) && Equals(key, "Space");
+    if (isSpace) {
+        var vacancies = findVacancies(w.marbles());
+        var added = addMarblesAtVacancies(vacancies, w.marbles());
+        return new WorldState(added);
+    } else {
+        return w;
+    }
+}
+
+/** 
+ * 1.1 Find all vacant positions
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Firstly, we hava a world with all possible coordinates (generated recursively).
+ *   Then, find the coordinates of existing marbles.
+ *   Return positions are currently empty (not occupied by a marble).
+ * 
+ * Examples:
+ * - Given: Suppose numMarbleRows = 2, numMarbleCols = 2, marbleRadius = 1.
+ *          allPositions = [(1,1), (1,2), (2,1), (2,2)]
+ *          listOfMarbles = [(2,2)]  (occupiedPositions)
+ *   Expect: findVacancies(list) = [(1,1), (1,2), (2,1)]
+ *
+ * Design Strategy: Combining Functions
+ * 
+ * @param listOfMarbles the current marbles in the world
+ * @return a ConsList of (x,y) coordinate pairs representing vacant positions
+*/
+ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
+  var allPositions = generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+  var occupiedPositions = positionsFromMarbles(listOfMarbles);
+  return subtractPositions(allPositions, occupiedPositions); 
+}
+
+/**
+* 1.1.1 Generates a list of pairs with the coordinates of the centers of the marbles 
 * laid out in a two-dimensional grid of marbles with numMarbleRows rows and numMarbleCols columns. 
 * The marbles are positioned to be touching the adjacent marbles in the grid, 
 * with no space in between them and no overlapping. 
@@ -124,6 +223,66 @@ ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
         }
     return generateAllGridCentersRecursively(marbleRadius, nextRow, nextCol, numMarbleRows, numMarbleCols, nextAcc);
 }
+
+/**
+ * 1.1.2 Base case: if the marble list is empty (Nil), return an empty list of coordinates.
+ * Recursive case: if there is a Cons node (i.e., one marble + the remaining list):
+ *   - Take the current marble’s (x, y) coordinates and wrap them into a Pair.
+ *   - Use Append to add this coordinate to the front of the recursive result.
+ *   - Recursively call positionsFromMarbles(remainingMarbles) until all marbles are processed.
+ * In other words, this function converts all Marble objects into their coordinate list.
+ *
+ */
+ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
+  return switch (marbles) {
+    case Nil<Marble>() -> MakeList();
+    case Cons<Marble>(var m, var rest) -> 
+        Append(MakeList(new Pair<Integer,Integer>(m.x(), m.y())), positionsFromMarbles(rest));
+  };
+}
+
+/** 
+ * 1.1.3 allPositions - occupiedPositions → produces the list of vacant positions.
+ * Base case: no remaining positions.
+ * Recursive case: current position + remaining positions.
+ */
+ConsList<Pair<Integer,Integer>> subtractPositions(ConsList<Pair<Integer,Integer>> allPositions, 
+                                                  ConsList<Pair<Integer,Integer>> occupiedPositions) {
+  return switch (allPositions) {
+    case Nil<Pair<Integer,Integer>>() -> MakeList();
+    case Cons<Pair<Integer,Integer>>(var position, var remaining) ->
+      containsPos(occupiedPositions, position)
+        ? subtractPositions(remaining, occupiedPositions)
+        : Append(MakeList(position), subtractPositions(remaining, occupiedPositions));
+  };
+}
+
+/**
+ * 
+ */
+boolean containsPos(ConsList<Pair<Integer,Integer>> positions, Pair<Integer,Integer> target) {
+  return switch (positions) {
+    case Nil<Pair<Integer,Integer>>() -> false;
+    case Cons<Pair<Integer,Integer>>(var p, var rest) -> 
+        Equals(p, target) || containsPos(rest, target);
+  };
+}
+
+/**
+ * 1.2 Place new marbles into these vacancies.
+ * Base case: no vacant positions
+ * Recursive case: directly return the recursive result
+ */
+ConsList<Marble> addMarblesAtVacancies(ConsList<Pair<Integer,Integer>> emptyPositions,
+                                       ConsList<Marble> currentMarbles) {
+  return switch (emptyPositions) {
+    case Nil<Pair<Integer,Integer>>() -> currentMarbles;
+    case Cons<Pair<Integer,Integer>>(var position, var remainingPositions) ->
+      addMarblesAtVacancies(remainingPositions,
+        Append(currentMarbles, MakeList(new Marble(position.first(), position.second(), randomColour()))));
+  };
+}
+
 
 /** Dispatch by mouse kind. */
 WorldState mouseEvent(WorldState w, MouseEvent mouseEvent) {
@@ -171,91 +330,6 @@ ConsList<Marble> filterOutSameColour(Marble target, ConsList<Marble> current) {
   };
 }
 
-
-/**
- * 4.1 
- * Handle SPACE key:
- * - Find all vacant positions → findVacancies
- * - Place new marbles into these vacancies → addMarblesAtVacancies
- * - Return the updated WorldState
- * - Otherwise return the original state (unchanged).
- */
-WorldState keyEvent(WorldState w, KeyEvent keyEvent) {
-  if (keyEvent.kind() == KeyEventKind.KEY_PRESSED && Equals(keyEvent.key(), "SPACE")) {
-    var vacancies = findVacancies(w.marbles());
-    var added = addMarblesAtVacancies(vacancies, w.marbles());
-    return new WorldState(added);
-  } else {
-    return w;
-  }
-}
-
-/** 
- * Find vacancies:
- * - allPositions → all possible coordinates (generated recursively).
- * - occupiedPositions → coordinates of existing marbles.
- * - subtractPositions → set difference (all − occupied), giving the vacant positions.
-*/
-ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
-  var allPositions = generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleCols, numMarbleCols);
-  var occupiedPositions = positionsFromMarbles(listOfMarbles);
-  return subtractPositions(allPositions, occupiedPositions); 
-}
-
-/**
- * Base case: if the marble list is empty (Nil), return an empty list of coordinates.
- * Recursive case: if there is a Cons node (i.e., one marble + the remaining list):
- *   - Take the current marble’s (x, y) coordinates and wrap them into a Pair.
- *   - Use Append to add this coordinate to the front of the recursive result.
- *   - Recursively call positionsFromMarbles(remainingMarbles) until all marbles are processed.
- * In other words, this function converts all Marble objects into their coordinate list.
- */
-ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
-  return switch (marbles) {
-    case Nil<Marble>() -> MakeList();
-    case Cons<Marble>(var m, var rest) -> 
-        Append(MakeList(new Pair<Integer,Integer>(m.x(), m.y())), positionsFromMarbles(rest));
-  };
-}
-
-/** 
- * allPositions - occupiedPositions → produces the list of vacant positions.
- * Base case: no remaining positions.
- * Recursive case: current position + remaining positions.
-*/
-ConsList<Pair<Integer,Integer>> subtractPositions(ConsList<Pair<Integer,Integer>> allPositions, 
-                                                  ConsList<Pair<Integer,Integer>> occupiedPositions) {
-  return switch (allPositions) {
-    case Nil<Pair<Integer,Integer>>() -> MakeList();
-    case Cons<Pair<Integer,Integer>>(var position, var remaining) ->
-      containsPos(occupiedPositions, position)
-        ? subtractPositions(remaining, occupiedPositions)
-        : Append(MakeList(position), subtractPositions(remaining, occupiedPositions));
-  };
-}
-
-
-boolean containsPos(ConsList<Pair<Integer,Integer>> positions, Pos target) {
-  return switch (positions) {
-    case Nil<Pair<Integer,Integer>>() -> false;
-    case Cons<Pair<Integer,Integer>>(var p, var rest) -> 
-        Equals(p, target) || containsPos(rest, target);
-  };
-}
-
-
-// Base case: no vacant positions
-// Recursive case: directly return the recursive result
-ConsList<Marble> addMarblesAtVacancies(ConsList<Pair<Integer,Integer>> emptyPositions,
-                                       ConsList<Marble> currentMarbles) {
-  return switch (emptyPositions) {
-    case Nil<Pair<Integer,Integer>>() -> currentMarbles;
-    case Cons<Pair<Integer,Integer>>(var position, var remainingPositions) ->
-      addMarblesAtVacancies(remainingPositions,
-        Append(currentMarbles, MakeList(new Marble(position.first(), position.second(), randomColour()))));
-  };
-}
-
 /**
  * returns Something with the marble at pixel coordinate (x, y) 
  * or Nothing if no marble is there
@@ -268,7 +342,7 @@ Maybe<Marble> getMarbleAt(WorldState w, int x, int y) {
  * returns the colour of a given marble
  */
 Colour getColour(Marble m) {
-    return m.colour();
+    return convertToColour(m.colour());
 }
 
 // returns the number of marbles of a given colour
