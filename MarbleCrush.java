@@ -70,6 +70,9 @@ WorldState step(WorldState w) {
     return w;
 }
 
+/**
+ * 
+ */
 Image draw(WorldState w) {
     Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE);
     return drawMarbles(w.marbles(), bg);
@@ -78,7 +81,7 @@ Image draw(WorldState w) {
 Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
     return switch (listOfMarbles) {
         case Nil<Marble>() -> bg;
-        case Cons<Marble>(var first, var rest) -> 
+        case Cons<Marble>(Marble first, ConsList<Marble> rest) -> 
             drawMarbles(rest, PlaceXY(bg, Circle(marbleRadius, convertToColour(first.colour())), first.x(), first.y()));
     };
 }
@@ -87,8 +90,9 @@ Image drawMarbles(ConsList<Marble> listOfMarbles, Image bg) {
  * returns the initial state of your world
  */
 WorldState getInitialState() {
-    var positions = generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
-    var marbles   = marblesFromPositions(positions, MakeList());
+    ConsList<Pair<Integer,Integer>> positions = 
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+    ConsList<Marble> marbles = marblesFromPositions(positions, MakeList());
     return new WorldState(marbles);
 }
 
@@ -98,7 +102,7 @@ WorldState getInitialState() {
 ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPositions, ConsList<Marble> acc) {
     return switch (listOfPositions) {
         case Nil<Pair<Integer,Integer>>() -> acc;
-        case Cons<Pair<Integer,Integer>>(var p, var rest) -> 
+        case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> p, ConsList<Pair<Integer,Integer>> rest) -> 
             marblesFromPositions(rest, Append(acc, MakeList(new Marble(p.first(), p.second(), randomColour()))));
     };
 }
@@ -151,8 +155,8 @@ WorldState keyEvent(WorldState w, KeyEvent keyEvent) {
 WorldState processKeyEvent(WorldState w, KeyEventKind keyEventKind, String key) {
     boolean isSpace = (keyEventKind == KeyEventKind.KEY_PRESSED) && Equals(key, "Space");
     if (isSpace) {
-        var vacancies = findVacancies(w.marbles());
-        var added = addMarblesAtVacancies(vacancies, w.marbles());
+        ConsList<Pair<Integer,Integer>> vacancies = findVacancies(w.marbles());
+        ConsList<Marble> added = addMarblesAtVacancies(vacancies, w.marbles());
         return new WorldState(added);
     } else {
         return w;
@@ -179,9 +183,11 @@ WorldState processKeyEvent(WorldState w, KeyEventKind keyEventKind, String key) 
  * @return a ConsList of (x,y) coordinate pairs representing vacant positions
 */
 ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
-  var allPositions = generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
-  var occupiedPositions = positionsFromMarbles(listOfMarbles);
-  return subtractPositions(allPositions, occupiedPositions); 
+    ConsList<Pair<Integer,Integer>> allPositions = 
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+    ConsList<Pair<Integer,Integer>> occupiedPositions = 
+        positionsFromMarbles(listOfMarbles);
+    return subtractPositions(allPositions, occupiedPositions); 
 }
 
 /**
@@ -239,7 +245,7 @@ ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
         int marbleDiameter = marbleRadius * 2;
         int x = marbleRadius + Col * marbleDiameter;
         int y = marbleRadius + row * marbleDiameter;
-        var nextAcc = Append(acc, MakeList(new Pair<Integer,Integer>(x, y)));
+        ConsList<Pair<Integer,Integer>> nextAcc = Append(acc, MakeList(new Pair<Integer,Integer>(x, y)));
         int nextCol = Col + 1;
         int nextRow = row;
         if (nextCol >= numMarbleCols) {
@@ -278,7 +284,7 @@ ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
 ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
   return switch (marbles) {
     case Nil<Marble>() -> MakeList();
-    case Cons<Marble>(var marble, var rest) -> 
+    case Cons<Marble>(Marble marble, ConsList<Marble> rest) -> 
         Append(MakeList(new Pair<Integer,Integer>(marble.x(), marble.y())), positionsFromMarbles(rest));
   };
 }
@@ -308,89 +314,203 @@ ConsList<Pair<Integer,Integer>> subtractPositions(ConsList<Pair<Integer,Integer>
                                                   ConsList<Pair<Integer,Integer>> occupiedPositions) {
   return switch (allPositions) {
     case Nil<Pair<Integer,Integer>>() -> MakeList();
-    case Cons<Pair<Integer,Integer>>(var position, var remaining) ->
+    case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> position, ConsList<Pair<Integer,Integer>> remaining) ->
       containsPos(occupiedPositions, position)
-        ? subtractPositions(remaining, occupiedPositions)
-        : Append(MakeList(position), subtractPositions(remaining, occupiedPositions));
+        ? subtractPositions(remaining, occupiedPositions)                              // occupied
+        : Append(MakeList(position), subtractPositions(remaining, occupiedPositions)); // empty
   };
 }
 
 /**
+ * Check whether a given target coordinate (x,y) exists in the positions list.
  * 
+ * Examples:
+ * - Given: positions = [(10,10), (20,20), (30,30)], target = (20,20)  
+ *   Expect: containsPos(positions, target) = true
+ * - Given: positions = [(10,10), (20,20), (30,30)], target = (40,40)  
+ *   Expect: containsPos(positions, target) = false
+ * 
+ * Design Strategy: Template application (recursion) 
+ * 
+ * @param positions a list of coordinate pairs (ConsList<Pair<Integer,Integer>>)
+ * @param target the coordinate pair to search for
+ * @return true if target is in positions, false otherwise
  */
-boolean containsPos(ConsList<Pair<Integer,Integer>> positions, Pair<Integer,Integer> target) {
-  return switch (positions) {
+boolean containsPos(ConsList<Pair<Integer,Integer>> occupiedPositions, Pair<Integer,Integer> target) {
+  return switch (occupiedPositions) {
     case Nil<Pair<Integer,Integer>>() -> false;
-    case Cons<Pair<Integer,Integer>>(var p, var rest) -> 
-        Equals(p, target) || containsPos(rest, target);
+    case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> first, ConsList<Pair<Integer,Integer>> rest) -> 
+        Equals(first, target) || containsPos(rest, target);
   };
 }
 
 /**
- * 1.2 Place new marbles into these vacancies.
- * Base case: no vacant positions
- * Recursive case: directly return the recursive result
+ * 1.2 
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Place new marbles into all vacant positions.  
+ * - Takes a list of empty positions and adds a new Marble (with random colour) at each coordinate,
+ *   appending them to the current list of marbles.  
+ * - Base case: no vacant positions
+ * - Recursive case: directly return the recursive result
+ * 
+ * Examples:
+ *  - Given: emptyPositions = [(10,10), (30,10)], currentMarbles = [Marble(50,10,Red)]  
+ *    Expect: [Marble(50,10,Red), Marble(10,10,Blue), Marble(30,10,Green)]  
+ *   (colours chosen randomly, order preserved by recursion)
+ * 
+ * Design Strategy: Template application (recursion)
+ * 
+ * @param emptyPositions a list of vacant coordinates 
+ * @param currentMarbles the list of marbles currently in the world 
+ * @return a ConsList<Marble> containing both old marbles and newly created ones
  */
 ConsList<Marble> addMarblesAtVacancies(ConsList<Pair<Integer,Integer>> emptyPositions,
                                        ConsList<Marble> currentMarbles) {
   return switch (emptyPositions) {
     case Nil<Pair<Integer,Integer>>() -> currentMarbles;
-    case Cons<Pair<Integer,Integer>>(var position, var remainingPositions) ->
+    case Cons<Pair<Integer,Integer>>(Pair<Integer,Integer> position, ConsList<Pair<Integer,Integer>> remainingPositions) ->
       addMarblesAtVacancies(remainingPositions,
         Append(currentMarbles, MakeList(new Marble(position.first(), position.second(), randomColour()))));
   };
 }
 
 
-/** Dispatch by mouse kind. */
+/**
+ * 2. Handle a mouse event
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - If the event is a LEFT_CLICK, use onLeftClick to update the world.  
+ * - Otherwise, ignore the event and return the world unchanged.
+ * 
+ * Examples:
+ *  - Given: Left click on a marble 
+ *    Expect: use onLeftClick function, world may change
+ *  - Given: Right click or other kind 
+ *    Expect: return w unchanged
+ * 
+ * Design Strategy: Case Distinction
+ * 
+ * @param w the current WorldState
+ * @param mouseEvent the mouse event to handle
+ * @return a new WorldState after the mouseEvent
+*/
 WorldState mouseEvent(WorldState w, MouseEvent mouseEvent) {
-    return (mouseEvent.kind() == MouseEventKind.LEFT_CLICK)
-        ? onLeftClick(w, mouseEvent)
-        : w;
+    return (mouseEvent.kind() == MouseEventKind.LEFT_CLICK) ? leftClick(w, mouseEvent) : w;
 }
 
 /** 
- * Handle left-click: remove all marbles of the clicked colour if hit; else unchanged.
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Handle a left-click event on the world
+ * - If the click hits a marble, remove all marbles of the same colour.  
+ * - If no marble is hit, return the world unchanged.
+ * 
+ * Examples:
+ *  - Given: WorldState( [Marble(10, 10, RED), Marble(30, 10, BLUE), Marble(50, 10, RED)] )
+ *           Left-click at Marble(10, 10, RED)
+ *    Expect: removes all RED marbles, return WorldState( [Marble(30, 10, BLUE)] )
+ * 
+ *  - Given: Left-click at Marble(10, 11, RED) hits nothing
+ *    Expect: returns the original world unchanged
+ *
+ * Design Strategy: Case Distinction
+ * 
+ * @param w the current WorldState
+ * @param mouseEvent the MouseEvent describing the click
+ * @return a new WorldState after applying the left-click logic
  */
-WorldState onLeftClick(WorldState w, MouseEvent mouseEvent) {
-    var hit = findClickedMarble(mouseEvent, w.marbles());
-    // single switch-expression, still no nesting with other conditionals
+WorldState leftClick(WorldState w, MouseEvent mouseEvent) {
+    Maybe<Marble> hit = findClickedMarble(mouseEvent, w.marbles());
     return switch (hit) {
         case Nothing<Marble>() -> w;
-        case Something<Marble>(var m) -> new WorldState(
-            filterOutSameColour(m, w.marbles())
-        );
+        case Something<Marble>(Marble marble) -> new WorldState(filterOutSameColour(marble, w.marbles()));
     };
 }
 
-/** 5.1.1 Hit detection (using the assignment’s "bounding box" rule: center ± R) */
+/** 
+ * 2.1
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Detect whether a mouse click hits any marble on the screen,
+ *   (click coordinates must lie within the square centered at the marble with 2R).  
+ * - If a marble is hit, return Something<Marble>(that marble);  
+ * - otherwise, return Nothing.
+ * 
+ * Examples:
+ *  - Given: World contains [Marble(50, 50, RED), Marble(100, 100, BLUE)], marbleRadius = 10
+ *           mouseEvent at (55,55)
+ *    Expect: Within bounding box of Marble(50,50,RED), return Something(Marble(50,50,RED))
+ * 
+ *  - Given: mouseEvent at (95,105)
+ *    Expect: Within bounding box of Marble(100,100,BLUE), return Something(Marble(100,100,BLUE))
+ * 
+ *  - Given: mouseEvent at (200,200)
+ *    Expect: Nothing
+ * 
+ * Design Strategy: Template application
+ * 
+ * @param mouseEvent  the MouseEvent containing click coordinates
+ * @param list        the list of marbles currently in the world
+ * @return            Maybe<Marble> (Something if hit, Nothing if no hit)
+ */
 Maybe<Marble> findClickedMarble(MouseEvent mouseEvent, ConsList<Marble> list) {
   return switch (list) {
     case Nil<Marble>() -> new Nothing<>();
     case Cons<Marble>(Marble first, ConsList<Marble> rest) -> 
-      (mouseEvent.x() >= first.x() - marbleRadius) && 
+      ((mouseEvent.x() >= first.x() - marbleRadius) && 
       (mouseEvent.x() <= first.x() + marbleRadius) &&
       (mouseEvent.y() >= first.y() - marbleRadius) && 
-      (mouseEvent.y() <= first.y() + marbleRadius)
-        ? new Something<Marble>(first)
-        : findClickedMarble(mouseEvent, rest);
+      (mouseEvent.y() <= first.y() + marbleRadius)) ? new Something<Marble>(first)
+                                                    : findClickedMarble(mouseEvent, rest);
   };
 }
 
-/** 5.1.2 Filter out all marbles of the same colour as the target (recursive, left -> right) */
+/** 
+ * 2.2
+ * Problem analysis and data design
+ * Function purpose statement and signature
+ * - Remove all marbles that have the same colour as the given target marble.
+ *   Traverses the list recursively from left to right, keeping only marbles of a different colour.
+ * 
+ * Examples:
+ *  - Given: filterOutSameColour(RED, [RED, BLUE, RED, GREEN])
+ *    Expect: [BLUE, GREEN]
+ *  - Given: filterOutSameColour(BLUE, [GREEN, RED])
+ *    Expect: [GREEN, RED]
+ *  - Given: filterOutSameColour(GREEN, []) 
+ *    Expect: []
+ * 
+ * Design Strategy: Template application
+ * 
+ * @param target  the marble clicked, all same colour marbles are removed
+ * @param current the current list of marbles (possibly empty)
+ * @return        a new list of marbles with all marbles of target.colour() removed
+ */
 ConsList<Marble> filterOutSameColour(Marble target, ConsList<Marble> current) {
   return switch (current) {
     case Nil<Marble>() -> MakeList();
-    case Cons<Marble>(var first, var rest) -> 
-      (Equals(first.colour(), target.colour())) 
-        ? filterOutSameColour(target, rest)
-        : Append(MakeList(first), filterOutSameColour(target, rest));
+    case Cons<Marble>(Marble first, ConsList<Marble> rest) -> 
+      (Equals(first.colour(), target.colour())) ? filterOutSameColour(target, rest)
+                                                : Append(MakeList(first), filterOutSameColour(target, rest));
   };
 }
 
 /**
- * returns Something with the marble at pixel coordinate (x, y) 
- * or Nothing if no marble is there
+ * Get marble at a pixel coordinate.
+ * - Given the current world state and a pixel coordinate (x, y),
+ *   returns the marble at pixel coordinate (x, y) or Nothing.
+ * 
+ * Examples:
+ * - If a marble exists at (10, 20), return Something(marble).
+ * - If no marble exists at (10, 10), return Nothing.
+ * 
+ * Design Strategy: Combining functions
+ * 
+ * @param w the current world state containing marbles
+ * @param x the x-coordinate (in pixels)
+ * @param y the y-coordinate (in pixels)
+ * @return Something<Marble> if a marble is found at (x, y), otherwise Nothing<Marble>
  */
 Maybe<Marble> getMarbleAt(WorldState w, int x, int y) {
   return findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, x, y), w.marbles());
@@ -411,7 +531,7 @@ int numberOfMarblesOfColour(WorldState w, Colour colour) {
 int countColour(ConsList<Marble> marbles, Colour colour) {
   return switch (marbles) {
     case Nil<Marble>() -> 0;
-    case Cons<Marble>(var first, var rest) ->
+    case Cons<Marble>(Marble first, ConsList<Marble> rest) ->
       (Equals(first.colour(), colour) ? 1 : 0) + countColour(rest, colour);
   };
 }
