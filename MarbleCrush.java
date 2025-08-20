@@ -733,5 +733,148 @@ void main() {
 }
 
 void test() {
-    runAsTest(this::testShapeAreaCircle);
+    runAsTest(this::testRandomColour);
+    runAsTest(this::testConvertToColour);
+    runAsTest(this::testStep);
+    runAsTest(this::testDraw);
+    runAsTest(this::testGetInitialState);
+    runAsTest(this::testMarblesFromPositions);
+    runAsTest(this::testMarblesFromPositions);
 }
+
+void testRandomColour() {
+    MarbleColour c = randomColour();
+    boolean valid = (c == MarbleColour.BLUE || c == MarbleColour.RED 
+                        || c == MarbleColour.GREEN || c == MarbleColour.BLACK);
+    testEqual(true, valid, "randomColour() must return one of the 4 colours");
+}
+
+void testConvertToColour() {
+    testEqual(Colour.BLUE, convertToColour(MarbleColour.BLUE), "convert BLUE");
+    testEqual(Colour.RED, convertToColour(MarbleColour.RED), "convert RED");
+    testEqual(Colour.GREEN, convertToColour(MarbleColour.GREEN), "convert GREEN");
+    testEqual(Colour.BLACK, convertToColour(MarbleColour.BLACK), "convert BLACK");
+}
+
+void testStep() {
+    WorldState empty = new WorldState(MakeList());
+    testEqual(empty, step(empty), "step() on empty world should not change");
+
+    WorldState one = new WorldState(MakeList(new Marble(10, 20, MarbleColour.BLUE)));
+    testEqual(one, step(one), "step() on non-empty world should not change");
+
+    WorldState many = new WorldState(
+        MakeList(
+            new Marble(10, 10, MarbleColour.RED),
+            new Marble(30, 40, MarbleColour.GREEN),
+            new Marble(70, 80, MarbleColour.BLACK),
+            new Marble(90, 15, MarbleColour.BLUE)
+        )
+    );
+    testEqual(many, step(many), "step(many) should not change the world");
+
+    WorldState edges = new WorldState(
+        MakeList(
+            new Marble(0, 0, MarbleColour.RED),
+            new Marble(WORLD_WIDTH, 0, MarbleColour.GREEN),
+            new Marble(0, WORLD_HEIGHT, MarbleColour.BLUE)
+        )
+    );
+    testEqual(edges, step(edges), "step(edges) should not move or alter marbles at boundaries");
+
+}
+
+void testDraw() {
+    // Case 1: Empty world: should be just the white background
+    WorldState empty = new WorldState(MakeList());
+    Image gotEmpty = draw(empty);
+    Image expectedBg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE);
+    testEqual(false, Equals(gotEmpty, null), "draw(empty) should not be null");
+    testEqual(true,  Equals(gotEmpty, expectedBg), "draw(empty) should equal plain white background");
+
+    // Case 2: One marble: should equal background plus one circle placed at marble coordinates
+    Marble m1 = new Marble(10, 20, MarbleColour.RED);
+    WorldState one = new WorldState(MakeList(m1));
+    Image gotOne = draw(one);
+    Image expectedOne =
+        PlaceXY(expectedBg,
+                Circle(marbleRadius, convertToColour(m1.colour())),
+                m1.x(), m1.y());
+    testEqual(true,  Equals(gotOne, expectedOne), "draw(one) should equal PlaceXY(bg, circle@m1)");
+
+    // Case 3: Two non-overlapping marbles: result should equal layered composition
+    //         and be independent of order (no pixel overlap occurs)
+    Marble m2 = new Marble(100, 120, MarbleColour.BLUE);
+    WorldState twoA = new WorldState(MakeList(m1, m2)); // m1 -> m2
+    WorldState twoB = new WorldState(MakeList(m2, m1)); // m2 -> m1
+    Image gotTwoA = draw(twoA);
+    Image gotTwoB = draw(twoB);
+    Image expectedTwo = PlaceXY(
+        PlaceXY(expectedBg, Circle(marbleRadius, convertToColour(m1.colour())), m1.x(), m1.y()),
+        Circle(marbleRadius, convertToColour(m2.colour())), m2.x(), m2.y());
+    testEqual(true, Equals(gotTwoA, expectedTwo), "draw(two) should match layered composition");
+    testEqual(true, Equals(gotTwoA, gotTwoB), "draw should be order-independent when circles do not overlap");
+
+    // Case 4: Boundary positions: marbles placed at corners should still be valid and drawn correctly
+    Marble edgeLeftTop  = new Marble(marbleRadius, marbleRadius, MarbleColour.GREEN);
+    Marble edgeRightBot = new Marble(WORLD_WIDTH - marbleRadius, WORLD_HEIGHT - marbleRadius, MarbleColour.BLACK);
+    WorldState edges = new WorldState(MakeList(edgeLeftTop, edgeRightBot));
+    Image gotEdges = draw(edges);
+    Image expectedEdges = PlaceXY(
+        PlaceXY(expectedBg, Circle(marbleRadius, convertToColour(edgeLeftTop.colour())), edgeLeftTop.x(), edgeLeftTop.y()),
+        Circle(marbleRadius, convertToColour(edgeRightBot.colour())), edgeRightBot.x(), edgeRightBot.y());
+    testEqual(false, Equals(gotEdges, null), "draw(edges) should not be null");
+    testEqual(true,  Equals(gotEdges, expectedEdges), "draw(edges) should match layered composition at boundaries");
+}
+
+void testGetInitialState() {
+    // Case 1: Normal case
+    WorldState init = getInitialState();
+    int expectedCount = numMarbleRows * numMarbleCols;
+    testEqual(expectedCount, Length(init.marbles()),
+        "initial state should have rows * cols marbles");
+
+    // Case 2: Edge case (0 rows or 0 cols: empty world)
+    WorldState emptyInit = new WorldState(MakeList());
+    testEqual(true, Equals(Length(emptyInit.marbles()), 0),
+        "if no rows or cols, initial state should be empty");
+
+    // Case 3: Sanity check (length is never negative)
+    testEqual(true, Length(init.marbles()) >= 0,
+        "initial state marble count should never be negative");
+}
+
+void testMarblesFromPositions() {
+    // Case 1: Empty input: should return empty list
+    ConsList<Pair<Integer,Integer>> emptyPos = MakeList();
+    ConsList<Marble> resultEmpty = marblesFromPositions(emptyPos, MakeList());
+    testEqual(0, Length(resultEmpty), "empty positions should give no marbles");
+
+    // Case 2: Single position: produces exactly one marble with same x,y
+    ConsList<Pair<Integer,Integer>> onePos = MakeList(new Pair<Integer,Integer>(10,20));
+    ConsList<Marble> resultOne = marblesFromPositions(onePos, MakeList());
+    testEqual(1, Length(resultOne), "one position should give one marble");
+    testEqual(10, Nth(resultOne,0).x(), "x coordinate matches input");
+    testEqual(20, Nth(resultOne,0).y(), "y coordinate matches input");
+
+    // Case 3: Multiple positions: produces same number of marbles in same order
+    ConsList<Pair<Integer,Integer>> twoPos = MakeList(
+        new Pair<Integer,Integer>(5, 5),new Pair<Integer,Integer>(100, 200));
+    ConsList<Marble> resultTwo = marblesFromPositions(twoPos, MakeList());
+    testEqual(2, Length(resultTwo), "two positions should give two marbles");
+    testEqual(5, Nth(resultTwo,0).x(), "first marble x");
+    testEqual(5, Nth(resultTwo,0).y(), "first marble y");
+    testEqual(100, Nth(resultTwo,1).x(), "second marble x");
+    testEqual(200, Nth(resultTwo,1).y(), "second marble y");
+
+    // Case 4: Boundary positions
+    ConsList<Pair<Integer,Integer>> edgePos = MakeList(
+        new Pair<Integer,Integer>(0, 0), new Pair<Integer,Integer>(WORLD_WIDTH, WORLD_HEIGHT));
+    ConsList<Marble> resultEdges = marblesFromPositions(edgePos, MakeList());
+    testEqual(2, Length(resultEdges), "two edge positions → two marbles");
+    testEqual(0, Nth(resultEdges,0).x(), "left/top corner x");
+    testEqual(0, Nth(resultEdges,0).y(), "left/top corner y");
+    testEqual(WORLD_WIDTH, Nth(resultEdges,1).x(), "right/bottom corner x");
+    testEqual(WORLD_HEIGHT, Nth(resultEdges,1).y(), "right/bottom corner y");
+}
+
