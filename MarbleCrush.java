@@ -739,7 +739,15 @@ void test() {
     runAsTest(this::testDraw);
     runAsTest(this::testGetInitialState);
     runAsTest(this::testMarblesFromPositions);
-    runAsTest(this::testMarblesFromPositions);
+    
+    runAsTest(this::testKeyEvent);
+    runAsTest(this::testProcessKeyEvent);
+    runAsTest(this::testFindVacancies);
+    runAsTest(this::testGenerateAllPositions);
+    runAsTest(this::testPositionsFromMarbles);
+    runAsTest(this::testSubtractPositions);
+    runAsTest(this::testContainsPos);
+    runAsTest(this::testAddMarblesAtVacancies);
 }
 
 void testRandomColour() {
@@ -878,3 +886,191 @@ void testMarblesFromPositions() {
     testEqual(WORLD_HEIGHT, Nth(resultEdges,1).y(), "right/bottom corner y");
 }
 
+
+void testKeyEvent() {
+    // Prepare a partially-filled world: occupy 1 known grid position.
+    ConsList<Pair<Integer,Integer>> all =
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+    Pair<Integer,Integer> p0 = Nth(all, 0); // first grid position
+    ConsList<Marble> partial = MakeList(new Marble(p0.first(), p0.second(), MarbleColour.BLUE));
+    WorldState w = new WorldState(partial);
+
+    int total = numMarbleRows * numMarbleCols;
+    int before = Length(w.marbles());
+
+    // SPACE (KEY_PRESSED + "Space") should fill all vacancies
+    KeyEvent space = new KeyEvent(KeyEventKind.KEY_PRESSED, "Space");
+    WorldState afterSpace = keyEvent(w, space);
+    testEqual(total, Length(afterSpace.marbles()),
+        "SPACE should fill all vacancies (length == rows*cols)");
+
+    // Non-space key should keep world unchanged in size
+    KeyEvent other = new KeyEvent(KeyEventKind.KEY_PRESSED, "A");
+    WorldState afterOther = keyEvent(w, other);
+    testEqual(before, Length(afterOther.marbles()),
+        "Non-space key should leave world unchanged in size");
+
+    // Wrong kind (e.g., KEY_RELEASED "Space") should not trigger fill
+    KeyEvent releasedSpace = new KeyEvent(KeyEventKind.KEY_RELEASED, "Space");
+    WorldState afterReleased = keyEvent(w, releasedSpace);
+    testEqual(before, Length(afterReleased.marbles()),
+        "KEY_RELEASED Space should not change the world");
+}
+
+void testProcessKeyEvent() {
+    // Build a full world (no vacancies) using your helpers — no loop, no var
+    ConsList<Pair<Integer,Integer>> all =
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+
+    ConsList<Marble> full =
+        marblesFromPositions(all, MakeList());   // uses your recursive converter (random colours are fine for size checks)
+
+    WorldState fullWorld = new WorldState(full);
+        int total = numMarbleRows * numMarbleCols;
+
+    // SPACE on full world: still full
+    WorldState ws1 = processKeyEvent(fullWorld, KeyEventKind.KEY_PRESSED, "Space");
+    testEqual(total, Length(ws1.marbles()),
+        "SPACE on full world should keep it full (no vacancies to fill)");
+
+    // Wrong key or wrong kind: unchanged
+    WorldState ws2 = processKeyEvent(fullWorld, KeyEventKind.KEY_PRESSED, "X");
+    testEqual(total, Length(ws2.marbles()),
+        "Non-space key should not change a full world");
+
+    WorldState ws3 = processKeyEvent(fullWorld, KeyEventKind.KEY_RELEASED, "Space");
+    testEqual(total, Length(ws3.marbles()),
+        "KEY_RELEASED Space should not change a full world");
+}
+
+void testFindVacancies() {
+    // Start with empty world: all positions are vacant
+    ConsList<Marble> none = MakeList();
+    ConsList<Pair<Integer,Integer>> v1 = findVacancies(none);
+    int total = numMarbleRows * numMarbleCols;
+    testEqual(total, Length(v1), "Empty world: all positions vacant");
+
+    // Occupy one known position: vacancies = total-1, and not containing that position
+    ConsList<Pair<Integer,Integer>> all =
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+    Pair<Integer,Integer> p0 = Nth(all, 0);
+    ConsList<Marble> one = MakeList(new Marble(p0.first(), p0.second(), MarbleColour.RED));
+    ConsList<Pair<Integer,Integer>> v2 = findVacancies(one);
+    testEqual(total - 1, Length(v2), "One occupied: vacancies == total-1");
+    testEqual(false, containsPos(v2, p0), "Vacancies should not contain occupied p0");
+
+    // If we occupy two positions, both must be removed from vacancies
+    Pair<Integer,Integer> p1 = Nth(all, 1);
+    ConsList<Marble> two = MakeList(new Marble(p0.first(), p0.second(), MarbleColour.RED),
+                                    new Marble(p1.first(), p1.second(), MarbleColour.BLUE));
+    ConsList<Pair<Integer,Integer>> v3 = findVacancies(two);
+    testEqual(total - 2, Length(v3), "Two occupied: vacancies == total-2");
+    testEqual(false, containsPos(v3, p0), "Vacancies should not contain p0");
+    testEqual(false, containsPos(v3, p1), "Vacancies should not contain p1");
+}
+
+void testGenerateAllPositions() {
+    // Use a tiny grid to verify exact coordinates (r=10, rows=2, cols=3)
+    int r = 10, rows = 2, cols = 3;
+    ConsList<Pair<Integer,Integer>> expect =
+        MakeList(new Pair<Integer,Integer>(10,10),
+                 new Pair<Integer,Integer>(30,10),
+                 new Pair<Integer,Integer>(50,10),
+                 new Pair<Integer,Integer>(10,30),
+                 new Pair<Integer,Integer>(30,30),
+                 new Pair<Integer,Integer>(50,30));
+
+    ConsList<Pair<Integer,Integer>> got =
+        generateAllMarblesCenterPositionRecursively(r, rows, cols);
+    testEqual(true, Equals(expect, got), "generateAllMarblesCenterPositionRecursively should match row-major grid");
+
+    // Helper base case: if row >= rows, returns acc unchanged
+    ConsList<Pair<Integer,Integer>> acc = MakeList(new Pair<Integer,Integer>(1,1));
+    ConsList<Pair<Integer,Integer>> base =
+        generateAllGridCentersRecursively(r, rows, 0, rows, cols, acc);
+    testEqual(true, Equals(acc, base), "generateAllGridCentersRecursively base case should return acc");
+}
+
+void testPositionsFromMarbles() {
+    // Empty
+    ConsList<Pair<Integer,Integer>> p0 = positionsFromMarbles(MakeList());
+    testEqual(0, Length(p0), "Empty marbles: empty positions");
+
+    // One
+    Marble m1 = new Marble(10, 20, MarbleColour.BLUE);
+    ConsList<Pair<Integer,Integer>> p1 = positionsFromMarbles(MakeList(m1));
+    testEqual(1, Length(p1), "One marble: one position");
+    testEqual(true, Equals(new Pair<Integer,Integer>(10,20), Nth(p1,0)), "Position equals (10,20)");
+
+    // Many (preserve order)
+    Marble m2 = new Marble(30, 40, MarbleColour.RED);
+    Marble m3 = new Marble(50, 60, MarbleColour.GREEN);
+    ConsList<Pair<Integer,Integer>> p = positionsFromMarbles(MakeList(m1, m2, m3));
+    testEqual(3, Length(p), "Three marbles: three positions");
+    testEqual(true, Equals(new Pair<Integer,Integer>(10,20), Nth(p,0)), "pos[0] == (10,20)");
+    testEqual(true, Equals(new Pair<Integer,Integer>(30,40), Nth(p,1)), "pos[1] == (30,40)");
+    testEqual(true, Equals(new Pair<Integer,Integer>(50,60), Nth(p,2)), "pos[2] == (50,60)");
+}
+
+void testSubtractPositions() {
+    ConsList<Pair<Integer,Integer>> all =
+        MakeList(new Pair<Integer,Integer>(10,10),
+                 new Pair<Integer,Integer>(30,10),
+                 new Pair<Integer,Integer>(50,10));
+
+    // No occupied: get all
+    ConsList<Pair<Integer,Integer>> occ0 = MakeList();
+    ConsList<Pair<Integer,Integer>> v0 = subtractPositions(all, occ0);
+    testEqual(true, Equals(all, v0), "No occupied: vacancies == all");
+
+    // Occupy middle
+    ConsList<Pair<Integer,Integer>> occ1 = MakeList(new Pair<Integer,Integer>(30,10));
+    ConsList<Pair<Integer,Integer>> v1 = subtractPositions(all, occ1);
+    ConsList<Pair<Integer,Integer>> exp1 =
+        MakeList(new Pair<Integer,Integer>(10,10), new Pair<Integer,Integer>(50,10));
+    testEqual(true, Equals(exp1, v1), "Occupied {30,10}: vacancies exclude it, preserve order");
+
+    // Occupy all
+    ConsList<Pair<Integer,Integer>> occAll =
+        MakeList(new Pair<Integer,Integer>(10,10),
+                 new Pair<Integer,Integer>(30,10),
+                 new Pair<Integer,Integer>(50,10));
+    ConsList<Pair<Integer,Integer>> vAll = subtractPositions(all, occAll);
+    testEqual(0, Length(vAll), "Occupied all: vacancies empty");
+}
+
+void testContainsPos() {
+    ConsList<Pair<Integer,Integer>> ps =
+        MakeList(new Pair<Integer,Integer>(1,1),
+                 new Pair<Integer,Integer>(2,2),
+                 new Pair<Integer,Integer>(3,3));
+
+    testEqual(true,  containsPos(ps, new Pair<Integer,Integer>(2,2)), "Should find existing (2,2)");
+    testEqual(false, containsPos(ps, new Pair<Integer,Integer>(4,4)), "Should not find absent (4,4)");
+    testEqual(false, containsPos(MakeList(), new Pair<Integer,Integer>(1,1)), "Empty list: always false");
+}
+
+void testAddMarblesAtVacancies() {
+    // current: one marble at (5,5)
+    ConsList<Marble> current = MakeList(new Marble(5, 5, MarbleColour.BLACK));
+
+    // empty positions to fill: (10,10), (30,10)
+    ConsList<Pair<Integer,Integer>> empties =
+        MakeList(new Pair<Integer,Integer>(10,10),
+                 new Pair<Integer,Integer>(30,10));
+
+    ConsList<Marble> out = addMarblesAtVacancies(empties, current);
+
+    // Length check: 1 existing + 2 new = 3
+    testEqual(3, Length(out), "Length should be current + vacancies");
+
+    // Order check: first is the original (5,5)
+    testEqual(5,  Nth(out,0).x(), "First marble keeps original x=5");
+    testEqual(5,  Nth(out,0).y(), "First marble keeps original y=5");
+
+    // New marbles appear in the order of vacancies, coordinates must match
+    testEqual(10, Nth(out,1).x(), "Second marble x from first vacancy");
+    testEqual(10, Nth(out,1).y(), "Second marble y from first vacancy");
+    testEqual(30, Nth(out,2).x(), "Third marble x from second vacancy");
+    testEqual(10, Nth(out,2).y(), "Third marble y from second vacancy");
+}
