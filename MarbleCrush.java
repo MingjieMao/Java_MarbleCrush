@@ -806,6 +806,10 @@ void testStep() {
 void testDraw() {
     Image img = draw(getInitialState());
     testEqual(false, img == null, "draw should not return null.");
+    
+    Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, Colour.WHITE);
+    Image res = drawMarbles(MakeList(), bg);
+    testEqual(true, Equals(res, bg), "empty world should equal plain white background.");
 }
 
 

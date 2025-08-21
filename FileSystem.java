@@ -557,7 +557,7 @@ void testfindByName() {
     testEqual(new Something<Item>(rootDup), findByName("dup", rootDup),
                 "When root matches, it should be returned before searching children.");
     
-    // 7)Two siblings have the same name; file comes before directory -> should return the file (first match)
+    // 7) Two siblings have the same name; file comes before directory -> should return the file (first match)
     Item fileFirst = new File("dup", 1);
     Item dirSecond = new Directory("dup", MakeList());
     Item root = new Directory("root", MakeList(fileFirst, dirSecond));
