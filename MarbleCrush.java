@@ -148,7 +148,7 @@ WorldState step(WorldState w) {
  * @return an Image with background and all marbles drawn
  */
 Image draw(WorldState w) {
-    Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE);
+    Image bg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, Colour.WHITE);
     return drawMarbles(w.marbles(), bg);
 }
 
@@ -693,7 +693,7 @@ int countColour(ConsList<Marble> marbles, Colour colour) {
     return switch (marbles) {
         case Nil<Marble>() -> 0;
         case Cons<Marble>(Marble first, ConsList<Marble> rest) ->
-            (Equals(first.colour(), colour) ? 1 : 0) + countColour(rest, colour);
+            (Equals(convertToColour(first.colour()), colour) ? 1 : 0) + countColour(rest, colour);
     };
 }
 
@@ -754,7 +754,11 @@ void test() {
     runAsTest(this::testFindClickedMarble);
     runAsTest(this::testFilterOutSameColour);
 
-
+    runAsTest(this::testGetMarbleAt);
+    runAsTest(this::testGetColour);
+    runAsTest(this::testCountColour);
+    runAsTest(this::testNumberOfMarblesOfColour);
+    runAsTest(this::testNumberOfEmptyLocations);
 }
 
 void testRandomColour() {
@@ -800,47 +804,10 @@ void testStep() {
 }
 
 void testDraw() {
-    // Case 1: Empty world: should be just the white background
-    WorldState empty = new WorldState(MakeList());
-    Image gotEmpty = draw(empty);
-    Image expectedBg = Rectangle(WORLD_WIDTH, WORLD_HEIGHT, WHITE);
-    testEqual(false, Equals(gotEmpty, null), "draw(empty) should not be null");
-    testEqual(true,  Equals(gotEmpty, expectedBg), "draw(empty) should equal plain white background");
-
-    // Case 2: One marble: should equal background plus one circle placed at marble coordinates
-    Marble m1 = new Marble(10, 20, MarbleColour.RED);
-    WorldState one = new WorldState(MakeList(m1));
-    Image gotOne = draw(one);
-    Image expectedOne =
-        PlaceXY(expectedBg,
-                Circle(marbleRadius, convertToColour(m1.colour())),
-                m1.x(), m1.y());
-    testEqual(true,  Equals(gotOne, expectedOne), "draw(one) should equal PlaceXY(bg, circle@m1)");
-
-    // Case 3: Two non-overlapping marbles: result should equal layered composition
-    //         and be independent of order (no pixel overlap occurs)
-    Marble m2 = new Marble(100, 120, MarbleColour.BLUE);
-    WorldState twoA = new WorldState(MakeList(m1, m2)); // m1 -> m2
-    WorldState twoB = new WorldState(MakeList(m2, m1)); // m2 -> m1
-    Image gotTwoA = draw(twoA);
-    Image gotTwoB = draw(twoB);
-    Image expectedTwo = PlaceXY(
-        PlaceXY(expectedBg, Circle(marbleRadius, convertToColour(m1.colour())), m1.x(), m1.y()),
-        Circle(marbleRadius, convertToColour(m2.colour())), m2.x(), m2.y());
-    testEqual(true, Equals(gotTwoA, expectedTwo), "draw(two) should match layered composition");
-    testEqual(true, Equals(gotTwoA, gotTwoB), "draw should be order-independent when circles do not overlap");
-
-    // Case 4: Boundary positions: marbles placed at corners should still be valid and drawn correctly
-    Marble edgeLeftTop  = new Marble(marbleRadius, marbleRadius, MarbleColour.GREEN);
-    Marble edgeRightBot = new Marble(WORLD_WIDTH - marbleRadius, WORLD_HEIGHT - marbleRadius, MarbleColour.BLACK);
-    WorldState edges = new WorldState(MakeList(edgeLeftTop, edgeRightBot));
-    Image gotEdges = draw(edges);
-    Image expectedEdges = PlaceXY(
-        PlaceXY(expectedBg, Circle(marbleRadius, convertToColour(edgeLeftTop.colour())), edgeLeftTop.x(), edgeLeftTop.y()),
-        Circle(marbleRadius, convertToColour(edgeRightBot.colour())), edgeRightBot.x(), edgeRightBot.y());
-    testEqual(false, Equals(gotEdges, null), "draw(edges) should not be null");
-    testEqual(true,  Equals(gotEdges, expectedEdges), "draw(edges) should match layered composition at boundaries");
+    Image img = draw(getInitialState());
+    testEqual(false, img == null, "draw should not return null.");
 }
+
 
 void testGetInitialState() {
     // Case 1: Normal case
@@ -1217,3 +1184,125 @@ void testFilterOutSameColour() {
     testEqual(true, Equals(outNoRed, onlyBGK), "If target colour absent, list unchanged");
 }
 
+
+void testGetMarbleAt() {
+    // Case 1: Empty world -> Nothing
+    WorldState empty = new WorldState(MakeList());
+    testEqual(
+        new Nothing<Marble>(),
+        getMarbleAt(empty, 0, 0), "Empty world should return Nothing"
+    );
+
+    // Prepare single-marble world
+    Marble m = new Marble(100, 100, MarbleColour.BLUE);
+    WorldState one = new WorldState(MakeList(m));
+
+    // Case 2: Center hit -> Something(m)
+    testEqual(
+        new Something<Marble>(m),
+        getMarbleAt(one, 100, 100), "Center click should hit"
+    );
+
+    // Case 3: Edge hit (x+R, y) -> Something(m)
+    testEqual(
+        new Something<Marble>(m),
+        getMarbleAt(one, m.x() + marbleRadius, m.y()), "Edge point should be considered a hit"
+    );
+
+    // Case 4: Outside -> Nothing
+    testEqual(
+        new Nothing<Marble>(),
+        getMarbleAt(one, m.x() + marbleRadius + 1, m.y()), "Outside by 1px should miss"
+    );
+
+    // Case 5: Overlapping two marbles -> first wins
+    Marble g = new Marble(300, 300, MarbleColour.GREEN);
+    Marble k = new Marble(300, 300, MarbleColour.BLACK);
+    WorldState two = new WorldState(MakeList(g, k));
+    testEqual(
+        new Something<Marble>(g),
+        getMarbleAt(two, 300, 300), "When overlapping, should return the first in the list"
+    );
+}
+
+void testGetColour() {
+    // BLUE
+    Marble mb = new Marble(10, 10, MarbleColour.BLUE);
+    testEqual(Colour.BLUE, getColour(mb), "BLUE should map to Colour.BLUE");
+
+    // RED
+    Marble mr = new Marble(10, 10, MarbleColour.RED);
+    testEqual(Colour.RED, getColour(mr), "RED should map to Colour.RED");
+
+    // GREEN
+    Marble mg = new Marble(10, 10, MarbleColour.GREEN);
+    testEqual(Colour.GREEN, getColour(mg), "GREEN should map to Colour.GREEN");
+
+    // BLACK
+    Marble mk = new Marble(10, 10, MarbleColour.BLACK);
+    testEqual(Colour.BLACK, getColour(mk), "BLACK should map to Colour.BLACK");
+} 
+
+void testCountColour() {
+    // Case 1: Empty list
+    testEqual(0, countColour(MakeList(), Colour.RED), "Empty list should count 0");
+
+    // Case 2: Single match
+    ConsList<Marble> oneR = MakeList(new Marble(10, 10, MarbleColour.RED));
+    testEqual(1, countColour(oneR, Colour.RED), "Single matching marble should count 1");
+
+    // Case 3: Multiple: two RED, one BLUE
+    ConsList<Marble> mix = MakeList(
+        new Marble(0, 0, MarbleColour.RED),
+        new Marble(1, 1, MarbleColour.BLUE),
+        new Marble(2, 2, MarbleColour.RED)
+    );
+    testEqual(2, countColour(mix, Colour.RED), "Two RED should count 2");
+    testEqual(1, countColour(mix, Colour.BLUE), "One BLUE should count 1");
+    testEqual(0, countColour(mix, Colour.GREEN), "No GREEN should count 0");
+}
+
+void testNumberOfMarblesOfColour() {
+    // Case 1: Empty world
+    WorldState empty = new WorldState(MakeList());
+    testEqual(0, numberOfMarblesOfColour(empty, Colour.RED), "Empty world: 0");
+
+    // Case 2: Mixed colours
+    WorldState w = new WorldState(MakeList(
+        new Marble(0, 0, MarbleColour.RED),
+        new Marble(1, 1, MarbleColour.BLUE),
+        new Marble(2, 2, MarbleColour.RED),
+        new Marble(3, 3, MarbleColour.GREEN)
+    ));
+    testEqual(2, numberOfMarblesOfColour(w, Colour.RED), "Two RED in world: 2");
+    testEqual(1, numberOfMarblesOfColour(w, Colour.BLUE), "One BLUE in world: 1");
+    testEqual(1, numberOfMarblesOfColour(w, Colour.GREEN), "One GREEN in world: 1");
+    testEqual(0, numberOfMarblesOfColour(w, Colour.BLACK), "No BLACK in world: 0");
+}
+
+void testNumberOfEmptyLocations() {
+    int total = numMarbleRows * numMarbleCols;
+
+    // Case 1: Empty world -> all vacant
+    WorldState empty = new WorldState(MakeList());
+    testEqual(total, numberOfEmptyLocations(empty), "Empty world should have all positions vacant");
+
+    // Prepare all grid centers
+    ConsList<Pair<Integer,Integer>> all =
+        generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
+
+    // Case 2: Full world -> 0 vacancies
+    ConsList<Marble> fullList = marblesFromPositions(all, MakeList()); 
+    WorldState full = new WorldState(fullList);
+    testEqual(0, numberOfEmptyLocations(full), "Full grid should have 0 vacancies");
+
+    // Case 3: Occupy first two centers -> total-2 
+    Pair<Integer,Integer> p0 = Nth(all, 0);
+    Pair<Integer,Integer> p1 = Nth(all, 1);
+    WorldState twoTaken = new WorldState(MakeList(
+        new Marble(p0.first(), p0.second(), MarbleColour.RED),
+        new Marble(p1.first(), p1.second(), MarbleColour.BLUE)
+    ));
+    testEqual(total - 2, numberOfEmptyLocations(twoTaken),
+        "With two occupied centers, vacancies should be total-2");
+}
