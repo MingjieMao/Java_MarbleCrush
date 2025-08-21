@@ -739,7 +739,7 @@ void test() {
     runAsTest(this::testDraw);
     runAsTest(this::testGetInitialState);
     runAsTest(this::testMarblesFromPositions);
-    
+
     runAsTest(this::testKeyEvent);
     runAsTest(this::testProcessKeyEvent);
     runAsTest(this::testFindVacancies);
@@ -748,6 +748,13 @@ void test() {
     runAsTest(this::testSubtractPositions);
     runAsTest(this::testContainsPos);
     runAsTest(this::testAddMarblesAtVacancies);
+
+    runAsTest(this::testMouseEvent);
+    runAsTest(this::testLeftClick);
+    runAsTest(this::testFindClickedMarble);
+    runAsTest(this::testFilterOutSameColour);
+
+
 }
 
 void testRandomColour() {
@@ -1065,8 +1072,8 @@ void testAddMarblesAtVacancies() {
     testEqual(3, Length(out), "Length should be current + vacancies");
 
     // Order check: first is the original (5,5)
-    testEqual(5,  Nth(out,0).x(), "First marble keeps original x=5");
-    testEqual(5,  Nth(out,0).y(), "First marble keeps original y=5");
+    testEqual(5, Nth(out,0).x(), "First marble keeps original x=5");
+    testEqual(5, Nth(out,0).y(), "First marble keeps original y=5");
 
     // New marbles appear in the order of vacancies, coordinates must match
     testEqual(10, Nth(out,1).x(), "Second marble x from first vacancy");
@@ -1074,3 +1081,139 @@ void testAddMarblesAtVacancies() {
     testEqual(30, Nth(out,2).x(), "Third marble x from second vacancy");
     testEqual(10, Nth(out,2).y(), "Third marble y from second vacancy");
 }
+
+void testMouseEvent() {
+    // Prepare a world with two RED marbles and one BLUE marble.
+    Marble r1 = new Marble(50, 50, MarbleColour.RED);
+    Marble r2 = new Marble(90, 50, MarbleColour.RED);
+    Marble b1 = new Marble(200, 200, MarbleColour.BLUE);
+    WorldState w = new WorldState(MakeList(r1, r2, b1));
+    int before = Length(w.marbles());
+
+    // LEFT_CLICK exactly on r1 center: all RED marbles removed
+    MouseEvent hitR1 = new MouseEvent(MouseEventKind.LEFT_CLICK, r1.x(), r1.y());
+    WorldState afterLeft = mouseEvent(w, hitR1);
+    testEqual(1, Length(afterLeft.marbles()),
+        "LEFT_CLICK on RED should remove all RED marbles (only BLUE remains)");
+    testEqual(true, Equals(Nth(afterLeft.marbles(), 0), b1),
+        "Remaining marble should be the BLUE one");
+
+    // LEFT_CLICK that misses everything: unchanged
+    MouseEvent miss = new MouseEvent(MouseEventKind.LEFT_CLICK, 9999, 9999);
+    WorldState afterMiss = mouseEvent(w, miss);
+    testEqual(before, Length(afterMiss.marbles()),
+        "LEFT_CLICK on empty space should leave world unchanged");
+    testEqual(true, Equals(afterMiss.marbles(), w.marbles()),
+        "World content unchanged when clicking empty space");
+
+    // Non-left event: unchanged
+    MouseEvent notLeft = new MouseEvent(MouseEventKind.RIGHT_CLICK, r1.x(), r1.y());
+    WorldState afterRight = mouseEvent(w, notLeft);
+    testEqual(true, Equals(afterRight.marbles(), w.marbles()),
+        "Non-LEFT mouse event should not change the world");
+}
+
+void testLeftClick() {
+    // World with two REDs and one BLUE
+    Marble r1 = new Marble(50, 50, MarbleColour.RED);
+    Marble r2 = new Marble(150, 150, MarbleColour.RED);
+    Marble b1 = new Marble(200, 200, MarbleColour.BLUE);
+    WorldState w = new WorldState(MakeList(r1, r2, b1));
+
+    // Hit r2: remove all REDs
+    MouseEvent hitR2 = new MouseEvent(MouseEventKind.LEFT_CLICK, r2.x(), r2.y());
+    WorldState afterHitR2 = leftClick(w, hitR2);
+    testEqual(1, Length(afterHitR2.marbles()),
+        "Hitting a RED should remove all REDs, leaving only BLUE");
+    testEqual(true, Equals(Nth(afterHitR2.marbles(), 0), b1),
+        "Remaining marble should be BLUE");
+
+    // Not hit: unchanged
+    MouseEvent notHit = new MouseEvent(MouseEventKind.LEFT_CLICK, 20, 20);
+    WorldState afterMiss = leftClick(w, notHit);
+    testEqual(true, Equals(afterMiss.marbles(), w.marbles()),
+        "Not hit Left-click should not change the world");
+
+    // Edge hit (on bounding box edge): x = center + R, y = center
+    MouseEvent edgeHit = new MouseEvent(MouseEventKind.LEFT_CLICK, r1.x() + marbleRadius, r1.y());
+    WorldState afterEdge = leftClick(w, edgeHit);
+    testEqual(1, Length(afterEdge.marbles()),
+        "Edge hit should count as hit (remove all REDs)");
+    testEqual(true, Equals(Nth(afterEdge.marbles(), 0), b1),
+        "After edge hit, only BLUE remains");
+}
+
+void testFindClickedMarble() {
+    // Case 1: Empty list -> Nothing
+    testEqual(
+        new Nothing<Marble>(),
+        findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, 0, 0), MakeList()),
+        "Empty list should return Nothing"
+    );
+
+    // Prepare a single marble
+    Marble m = new Marble(100, 100, MarbleColour.BLUE);
+    ConsList<Marble> one = MakeList(m);
+
+    // Case 2: Center hit -> Something(m)
+    testEqual(
+        new Something<Marble>(m),
+        findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, 100, 100), one),
+        "Center click should hit the marble"
+    );
+
+    // Case 3: Edge hit (x+R, y) -> Something(m)
+    testEqual(
+        new Something<Marble>(m),
+        findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, m.x() + marbleRadius, m.y()), one),
+        "Edge point should be considered a hit"
+    );
+
+    // Case 4: Outside by 1px (x+R+1, y) -> Nothing
+    testEqual(
+        new Nothing<Marble>(),
+        findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, m.x() + marbleRadius + 1, m.y()), one),
+        "Outside bounding box by 1px should be miss"
+    );
+
+    // Case 5: Overlapping two marbles at same center -> first wins
+    Marble g = new Marble(300, 300, MarbleColour.GREEN);
+    Marble k = new Marble(300, 300, MarbleColour.BLACK);
+    ConsList<Marble> two = MakeList(g, k);
+    testEqual(
+        new Something<Marble>(g),
+        findClickedMarble(new MouseEvent(MouseEventKind.LEFT_CLICK, 300, 300), two),
+        "When overlapping, should return the first in the list"
+    );
+}
+
+void testFilterOutSameColour() {
+    // Empty list -> empty
+    ConsList<Marble> empty = MakeList();
+    ConsList<Marble> out0 = filterOutSameColour(new Marble(0, 0, MarbleColour.RED), empty);
+    testEqual(0, Length(out0), "Empty list remains empty");
+
+    // All same colour -> all removed
+    Marble r1 = new Marble(10, 10, MarbleColour.RED);
+    Marble r2 = new Marble(20, 20, MarbleColour.RED);
+    ConsList<Marble> reds = MakeList(r1, r2);
+    ConsList<Marble> outR = filterOutSameColour(r1, reds);
+    testEqual(0, Length(outR), "All RED removed");
+
+    // Mixed colours -> only target colour removed; order preserved for others
+    Marble b = new Marble(30, 30, MarbleColour.BLUE);
+    Marble g = new Marble(40, 40, MarbleColour.GREEN);
+    Marble r3 = new Marble(50, 50, MarbleColour.RED);
+    ConsList<Marble> mixed = MakeList(r1, b, g, r3);
+    ConsList<Marble> outMix = filterOutSameColour(r1, mixed);
+    testEqual(2, Length(outMix), "Should keep only non-RED marbles");
+    testEqual(true, Equals(Nth(outMix, 0), b), "First kept should be BLUE (order preserved)");
+    testEqual(true, Equals(Nth(outMix, 1), g), "Second kept should be GREEN (order preserved)");
+
+    // No target colour present -> list unchanged
+    Marble k = new Marble(60, 60, MarbleColour.BLACK);
+    ConsList<Marble> onlyBGK = MakeList(b, g, k);
+    ConsList<Marble> outNoRed = filterOutSameColour(r1, onlyBGK);
+    testEqual(true, Equals(outNoRed, onlyBGK), "If target colour absent, list unchanged");
+}
+
