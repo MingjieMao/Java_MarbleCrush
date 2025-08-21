@@ -516,44 +516,14 @@ Maybe<Item> findByName(String name, Item initialItem) {
  * @return Something if a matching item is found in left-to-right order, otherwise Nothing.
  */
 Maybe<Item> findByNameInList(String name, ConsList<Item> items) {
-    return switch(items) {
-        // Empty list: not found
-        case Nil<Item>() -> new Nothing<Item>();
-
-         // Non-empty: search first (including its subtree); if found, return it; otherwise continue with rest
-        case Cons<Item>(var first, var rest) -> 
-            preferFirst(
-                findByName(name, first),         // search the first item
-                findByNameInList(name, rest)     // then the rest of the list
-            );
+    return switch(items){
+        case Nil<Item> () -> new Nothing<Item>();
+        case Cons<Item>(Item first, ConsList<Item> rest) -> 
+            Equals(findByName(name, first), new Nothing<Item>()) 
+                ? findByNameInList(name, rest)
+                : findByName(name, first);
     };
 }
-
-/**
- * 1. Problem Analysis and Data Design
- * We have two Maybe<Item> and must choose the first that contains the value.
- * 2. Function Purpose Statement and Signature
- * Find the item based on its name, first search in a, otherwice b.
- * Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b)
- * 3. Examples:
- *   - preferFirst(Something(x), Something(y)) => Something(x)
- *   - preferFirst(Something(x), Nothing())    => Something(x)
- *   - preferFirst(Nothing(), Something(y)) => Something(y)
- *   - preferFirst(Nothing(), Nothing())    => Nothing()
- *
- * 4. Design Strategy: Case Distinction
- * 5. Implementation
- * @param a First item.
- * @param b Rest items.
- * @return Reture a when it is Something; otherwise b.
- */
-Maybe<Item> preferFirst(Maybe<Item> a, Maybe<Item> b) {
-    return switch(a) {
-        case Something<Item>(var n) -> a;
-        case Nothing<Item>() -> b;
-    };
-}
-
 
 void testfindByName() {
     // 1) FileMatch: root is a file with the same name -> should return Something(file)
@@ -626,13 +596,15 @@ void testfindByName() {
 void testfindByNameInList() {
     // Empty
     ConsList<Item> empty = MakeList();
-    testEqual(new Nothing<Item>(), findByNameInList("a.txt", empty), "Empty list should return Nothing.");
+    testEqual(new Nothing<Item>(), findByNameInList("x", empty), "Empty list should return Nothing.");
 
     // Single file
     Item sFile = new File("a.txt", 1);
     ConsList<Item> list1 = MakeList(sFile);
     testEqual(new Something<Item>(sFile), findByNameInList("a.txt", list1),
                 "Singleton list should return its only matching element.");
+    testEqual(new Nothing<Item>(), findByNameInList("b.txt", list1),
+                "Singleton list miss should return Nothing.");
 
     // Multiple items: should return the first match
     Item f1 = new File("a.txt", 1);
@@ -641,59 +613,46 @@ void testfindByNameInList() {
     testEqual(new Something<Item>(f1), findByNameInList("a.txt", list2),
                 "Should return the first matching element from left to right.");
 
-    // Recursive: directory in list contains the target
-    Item nestedFile = new File("target.txt", 5);
-    Item dirWithTarget = new Directory("docs", MakeList(nestedFile));
-    ConsList<Item> list3 = MakeList(dirWithTarget);
-    testEqual(new Something<Item>(nestedFile), findByNameInList("target.txt", list3),
-                "Should search recursively into the sub-directory.");
+    // Directory subtree match should prefer the first
+    Item nestedFile = new File("n", 3);
+    Item dirWithTarget = new Directory("d", MakeList(nestedFile));
+    Item laterSameName = new File("n", 4);
+    ConsList<Item> list3 = MakeList(dirWithTarget, laterSameName);
+    testEqual(new Something<Item>(nestedFile), findByNameInList("n", list3),
+                "Should return the match from the left directory subtree.");
 
-    // First no hit, second hits
-    Item noHit = new File("zzz", 1);
-    Item hit   = new File("hit.txt", 2);
-    Item dirHit = new Directory("folder", MakeList(hit));
-    ConsList<Item> list4 = MakeList(noHit, dirHit);
-    testEqual(new Something<Item>(hit), findByNameInList("hit.txt", list4),
-                "Should continue to the right when the left element does not match.");
+    // Left directory has no match, continue to the right
+    Item noHitFile = new File("zzz", 1);
+    Item emptyDir  = new Directory("empty", MakeList());
+    Item deepHit   = new File("hit.txt", 2);
+    Item dirHit    = new Directory("folder", MakeList(deepHit));
+    ConsList<Item> list4 = MakeList(emptyDir, noHitFile, dirHit);
+    testEqual(new Something<Item>(deepHit), findByNameInList("hit.txt", list4),
+                "Should continue past non-matching left elements.");
 
-    // Duplicates at same level: return the first occurrence
-    Item dupFile = new File("dup", 1);
-    Item dupDir  = new Directory("dup", MakeList());
-    ConsList<Item> list6 = MakeList(dupFile, dupDir);
-    testEqual(new Something<Item>(dupFile),findByNameInList("dup", list6),
-                "With duplicates at the same level, return the first occurrence.");
+    // Duplicates at same level: return the first occurrence */
+    Item dup1 = new File("dup", 1);
+    Item dup2 = new File("dup", 2);
+    ConsList<Item> list5 = MakeList(dup1, dup2);
+    testEqual(new Something<Item>(dup1), findByNameInList("dup", list5),
+                "Should return the first duplicate.");
+
+    // Deeply nested match (two levels)
+    Item deep = new File("deep", 42);
+    Item inner = new Directory("inner", MakeList(deep));
+    Item outer = new Directory("outer", MakeList(inner));
+    ConsList<Item> list6 = MakeList(outer);
+    testEqual(new Something<Item>(deep),
+              findByNameInList("deep", list6),
+              "Should find within deeper files.");
 
     // No match anywhere
     Item otherFile = new File("a.txt", 1);
-    Item emptyDir  = new Directory("docs", MakeList());
-    ConsList<Item> list5 = MakeList(otherFile, emptyDir);
-    testEqual(new Nothing<Item>(), findByNameInList("notfound.txt", list5),
+    Item emptyDir2  = new Directory("docs", MakeList());
+    ConsList<Item> list7 = MakeList(otherFile, emptyDir2);
+    testEqual(new Nothing<Item>(), findByNameInList("notfound.txt", list7),
                 "Should return Nothing when no element matches.");
 }
-
-
-void testPreferFirst() {
-    // BothSomething: when both are Something, return the first (a1)
-    Maybe<Item> a1 = new Something<Item>(new File("a.txt", 1));
-    Maybe<Item> b1 = new Something<Item>(new File("b.txt", 2));
-    testEqual(a1, preferFirst(a1, b1), "Both Something: should return the first argument.");
-
-    // FirstSomething: first is Something, second is Nothing -> return first
-    Maybe<Item> a2 = new Something<Item>(new File("a.txt", 1));
-    Maybe<Item> b2 = new Nothing<Item>();
-    testEqual(a2, preferFirst(a2, b2), "First Something, second Nothing: should return the first argument.");
-
-    // SecondSomething: first is Nothing, second is Something -> return second
-    Maybe<Item> a3 = new Nothing<Item>();
-    Maybe<Item> b3 = new Something<Item>(new File("b.txt", 2));
-    testEqual(b3, preferFirst(a3, b3), "First Nothing, second Something: should return the second argument.");
-
-    // BothNothing: both are Nothing -> return the second (by our spec)
-    Maybe<Item> a4 = new Nothing<Item>();
-    Maybe<Item> b4 = new Nothing<Item>();
-    testEqual(b4, preferFirst(a4, b4), "Both Nothing: should return the second argument.");
-}
-
 
 void test() {
     // 2. isFile, isDirectory, makeFile, makeEmptyDirectory tests
@@ -724,7 +683,6 @@ void test() {
     // 5. findByName tests
     runAsTest(this::testfindByName);
     runAsTest(this::testfindByNameInList);
-    runAsTest(this::testPreferFirst);
 }
 
 void main() {
