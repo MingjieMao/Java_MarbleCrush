@@ -39,7 +39,7 @@ enum MarbleColour {
  * 
  * Design Strategy: Case distinction
  * 
- * @return a randomly chosen MarbleColour (BLUE, RED, GREEN, or BLACK)
+ * @return a randomly chosen MarbleColour (BLUE, RED, GREEN, BLACK)
  */
 MarbleColour randomColour() {
     int r = RandomNumber(0,4);
@@ -167,6 +167,8 @@ Image draw(WorldState w) {
  *   - If listOfMarbles has multiple marbles,
  *       recursively draws each marble on bg.
  * 
+ * Design Strategy: Template application
+ * 
  * @param listOfMarbles a ConsList of marbles to be drawn
  * @param bg the background image on which marbles will be placed
  * @return an Image with all marbles drawn on top of the background
@@ -203,7 +205,7 @@ WorldState getInitialState() {
 
 /**
  * Convert a list of marble center positions into a list of Marble objects.
- *   Each position (x, y) becomes a Marble with a randomly assigned colour.
+ * Each position (x, y) becomes a Marble with a randomly assigned colour.
  * 
  * Examples:
  *   - If Nil, returns acc (no new marbles to add).
@@ -239,7 +241,7 @@ ConsList<Marble> marblesFromPositions(ConsList<Pair<Integer,Integer>> listOfPosi
  *   Pressing SPACE, return a new world with 375 marbles.
  *   Pressing any other key, return w unchanged.
  * 
- * Design Strategy: Case Distinction (on KeyEvent)
+ * Design Strategy: Combining functions
  * 
  * @param w the current WorldState
  * @param keyEvent the keyboard event to handle
@@ -325,7 +327,7 @@ ConsList<Pair<Integer,Integer>> findVacancies(ConsList<Marble> listOfMarbles) {
 *   - Given: marbleRadius=10, numMarbleRows=2, numMarbleCols=3
 *   - Expect: [(10,10),(30,10),(50,10),(10,30),(30,30),(50,30)]
 * 
-* Design strategy: Case distinction (Recursion) and Combining functions
+* Design strategy: Combining functions
 
 * @param marbleRadius The radius of the marble in pixels (>0)
 * @param numMarbleRows The number of rows in the 2D grid of marbles (>0)
@@ -347,7 +349,7 @@ ConsList<Pair<Integer,Integer>> generateAllMarblesCenterPositionRecursively(
  *   - Given: marbleRadius=10, numMarbleRows=2, numMarbleCols=3
  *   - Expect: [(10,10),(30,10),(50,10),(10,30),(30,30),(50,30)]
  * 
- * Design Strategy: Case distinction (Recursion) and Combining functions
+ * Design Strategy: Case distinction
  * 
  * @param marbleRadius the radius of each marble
  * @param row current row index (0-based)
@@ -396,7 +398,7 @@ ConsList<Pair<Integer,Integer>> generateAllGridCentersRecursively(
  *          positionsFromMarbles(MakeList(m1, m2, m3))
  *   Expect: [(10,10), (30,10), (50,10)]
  * 
- * Design Strategy: Template application（Recursion）
+ * Design Strategy: Template application
  * 
  * @param marbles the list of marbles (ConsList<Marble>)
  * @return a ConsList<Pair<Integer,Integer>> of (x,y) centers
@@ -424,7 +426,7 @@ ConsList<Pair<Integer,Integer>> positionsFromMarbles(ConsList<Marble> marbles) {
  *          subtractPositions(all, occupied) 
  *   Expect: [(10,10), (50,10)]
  * 
- * Design Strategy: Structural Template Application (Recursion on ConsList)
+ * Design Strategy: Structural Template Application
  * 
  * @param allPositions all possible grid positions (ConsList<Pair<Integer,Integer>>)  
  * @param occupiedPositions coordinates of marbles currently present (ConsList<Pair<Integer,Integer>>)  
@@ -450,7 +452,7 @@ ConsList<Pair<Integer,Integer>> subtractPositions(ConsList<Pair<Integer,Integer>
  * - Given: positions = [(10,10), (20,20), (30,30)], target = (40,40)  
  *   Expect: containsPos(positions, target) = false
  * 
- * Design Strategy: Template application (recursion) 
+ * Design Strategy: Template application
  * 
  * @param positions a list of coordinate pairs (ConsList<Pair<Integer,Integer>>)
  * @param target the coordinate pair to search for
@@ -479,7 +481,7 @@ boolean containsPos(ConsList<Pair<Integer,Integer>> occupiedPositions, Pair<Inte
  *    Expect: [Marble(50,10,Red), Marble(10,10,Blue), Marble(30,10,Green)]  
  *   (colours chosen randomly, order preserved by recursion)
  * 
- * Design Strategy: Template application (recursion)
+ * Design Strategy: Template application 
  * 
  * @param emptyPositions a list of vacant coordinates 
  * @param currentMarbles the list of marbles currently in the world 
@@ -576,7 +578,7 @@ WorldState leftClick(WorldState w, MouseEvent mouseEvent) {
  */
 Maybe<Marble> findClickedMarble(MouseEvent mouseEvent, ConsList<Marble> list) {
     return switch (list) {
-        case Nil<Marble>() -> new Nothing<>();
+        case Nil<Marble>() -> new Nothing<Marble>();
         case Cons<Marble>(Marble first, ConsList<Marble> rest) -> 
             ((mouseEvent.x() >= first.x() - marbleRadius) && 
             (mouseEvent.x() <= first.x() + marbleRadius) &&
@@ -683,7 +685,7 @@ int numberOfMarblesOfColour(WorldState w, Colour colour) {
  *   - If marbles = [RED, BLUE, RED] and colour = RED, return 2.  
  *   - If marbles = [GREEN, GREEN] and colour = RED, return 0.  
  * 
- * Design Strategy: Case distinction
+ * Design Strategy: Template application
  * 
  * @param marbles the ConsList of marbles to search  
  * @param colour the target Colour to count  
@@ -957,14 +959,12 @@ void testGenerateAllPositions() {
                  new Pair<Integer,Integer>(30,30),
                  new Pair<Integer,Integer>(50,30));
 
-    ConsList<Pair<Integer,Integer>> got =
-        generateAllMarblesCenterPositionRecursively(r, rows, cols);
+    ConsList<Pair<Integer,Integer>> got = generateAllMarblesCenterPositionRecursively(r, rows, cols);
     testEqual(true, Equals(expect, got), "generateAllMarblesCenterPositionRecursively should match row-major grid");
 
     // Helper base case: if row >= rows, returns acc unchanged
     ConsList<Pair<Integer,Integer>> acc = MakeList(new Pair<Integer,Integer>(1,1));
-    ConsList<Pair<Integer,Integer>> base =
-        generateAllGridCentersRecursively(r, rows, 0, rows, cols, acc);
+    ConsList<Pair<Integer,Integer>> base = generateAllGridCentersRecursively(r, rows, 0, rows, cols, acc);
     testEqual(true, Equals(acc, base), "generateAllGridCentersRecursively base case should return acc");
 }
 

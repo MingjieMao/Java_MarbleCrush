@@ -149,7 +149,6 @@ void testMakeEmptyDirectory_IsEmpty() {
 }
 
 
-
 // 3. Populating a Directory
 /**
  * Problem Analysis and Data Definitions
@@ -360,6 +359,7 @@ int calculateSize(Item item) {
  *    - given: []                                 expect: 0
  *    - given: [File("a", 1200)]                  expect: 1200
  *    - given: [File("a", 1200), File("b", 3000)] expect: 4200
+ * 
  * Design Strategy: Template application
  * 
  * @param items A ConsList<Item> of file system items.
