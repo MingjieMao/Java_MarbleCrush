@@ -896,12 +896,11 @@ void testKeyEvent() {
 }
 
 void testProcessKeyEvent() {
-    // Build a full world (no vacancies) using your helpers — no loop, no var
     ConsList<Pair<Integer,Integer>> all =
         generateAllMarblesCenterPositionRecursively(marbleRadius, numMarbleRows, numMarbleCols);
 
     ConsList<Marble> full =
-        marblesFromPositions(all, MakeList());   // uses your recursive converter (random colours are fine for size checks)
+        marblesFromPositions(all, MakeList());  
 
     WorldState fullWorld = new WorldState(full);
         int total = numMarbleRows * numMarbleCols;

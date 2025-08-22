@@ -9,21 +9,23 @@ import static comp1110.testing.Comp1110Unit.*;
 
 // 1. Designing the File System Model
 /**
- * 1. Problem analysis and data design 
- * We will use a general itemization in order to represent Item.
- * 2. Function purpose statement and signature
- * A file system consists of two kind of items: file and directory.
- *  - File, a simple item, cannot contain other items.
- *  - Directory, a more complex item, can contain both files and other directories.
- * 3. Examples:
+ * Problem analysis and data design 
+ * - We will use a general itemization in order to represent Item.
+ * 
+ * Function purpose statement and signature
+ * - A file system consists of two kind of items: file and directory.
+ *   - File, a simple item, cannot contain other items.
+ *   - Directory, a more complex item, can contain both files and other directories.
+ * 
+ * Examples:
  *    - Item file1 = new File("1110.txt", 1200);
  *    - Item dir1 = new Directory("emptyFolder", MakeList()); 
  *    - Item dir2 = new Directory("docs", MakeList(new File("a.txt", 10), new File("b.txt", 200)));
  *    - Item dir4 = new Directory("workspace", MakeList(
         new File("notes.md", 1500),
         new Directory("images", MakeList(new File("cat.png", 20480), new File("dog.png", 18000)))));
- * 4. Design Strategy: Template application
- * 5. Implementation
+
+ * Design Strategy: Template application
  */
 sealed interface Item permits File, Directory {
     String name();
@@ -72,6 +74,7 @@ record Directory(String name, ConsList<Item> items) implements Item {}
  * ... directory.name() ...
  * ... ConsList.Cons<Item>(item, directory.items()) ...
  */
+
 
 // 2. Testing interface
 // To interpret the item [I]
@@ -149,24 +152,29 @@ void testMakeEmptyDirectory_IsEmpty() {
 
 // 3. Populating a Directory
 /**
- * 1. Problem Analysis and Data Definitions
- * We need to add an Item (file or directory) into a Directory’s items.
- * 2. Function Purpose Statement and Signature
- * Adds a given item (file or subdirectory) to a directory. (prepend)
- * Directory addItemToDirectory(Directory directory, Item item)
- * 3. Examples:
+ * Problem Analysis and Data Definitions
+ * - We need to add an Item (file or directory) into a Directory’s items.
+ * 
+ * Function Purpose Statement and Signature
+ * - Adds a given item (file or subdirectory) to a directory. (prepend)
+ * - Directory addItemToDirectory(Directory directory, Item item)
+ * 
+ * Examples:
  *    - Given: Directory dir0 = new Directory("root", MakeList());
  *             First, Add to empty directory: Item fileA = new File("a.txt", 1200);
  *      Expect: Directory dir1 = addItemToDirectory(dir0, fileA);
  *              [a.txt]
+ * 
  *    - Given: Add second file: Item fileB = new File("b.txt", 900);
  *      Expect: Directory dir2 = addItemToDirectory(dir1, fileB);
  *              [b.txt, a.txt]
+ * 
  *    - Given: Add a subdirectory: Item docs = new Directory("docs", MakeList(new File("notes.txt", 517)));
  *      Expect: Directory dir3 = addItemToDirectory(dir2, docs);
  *              [docs, b.txt, a.txt]
- * 4. Design Strategy: Simple expression
- * 5. Implementation
+ * 
+ * Design Strategy: Simple expression
+ * 
  * @param directory The directory to which the item will be added.
  * @param item      The item to add to the directory. It can be a file or another directory.
  * @return          Returns a new Directory, which contains all original items plus the new item at the front.
@@ -179,17 +187,20 @@ Directory addItemToDirectory(Directory directory, Item item) {
 }
 
 /**
- * 1. Problem Analysis and Data Definitions
- * We want to fetch the name of the Item at a given index in a ConsList<Item>.
- * 2. Function Purpose Statement and Signature
- * Returns the name of the element at position index in the list.
- * String getNameAt(ConsList<Item> items, int index)
- * 3. Examples:
+ * Problem Analysis and Data Definitions
+ * - We want to fetch the name of the Item at a given index in a ConsList<Item>.
+ * 
+ * Function Purpose Statement and Signature
+ * - Returns the name of the element at position index in the list.
+ * - String getNameAt(ConsList<Item> items, int index)
+ * 
+ * Examples:
  *    - getNameAt([a.txt, b.txt], 0) ==> "a.txt"
  *    - getNameAt([a.txt, b.txt], 1) ==> "b.txt"
  *    - getNameAt([], 0) ==> "" 
- * 4. Design Strategy: Template application and Combining functions
- * 5. Implementation
+ * 
+ * Design Strategy: Template application and Combining functions
+ * 
  * @param items ConsList<Item>, consist of case Nil<Item> and Cons<Item>
  * @param index position in the list, begin of 0
  * @return      the name of the Item at index
@@ -198,22 +209,25 @@ String getNameAt(ConsList<Item> items, int index) {
     if (LessThan(index, 0)) return "";
     return switch(items) {
         case Nil<Item>() -> "";
-        case Cons<Item>(var first, var rest) -> indexAt(first, rest, index);
+        case Cons<Item>(Item first, ConsList<Item> rest) -> indexAt(first, rest, index);
     };
 }
 
 /**
- * 1. Problem Analysis and Data Definitions
- * Helper function for getNameAt: if index is 0, return current Item’s name;
- * otherwise recurse on rest with index-1.
- * 2. Function Purpose Statement and Signature
- * Returns the name of the Item at the given index, given current first item and rest elements.
- * String indexAt(Item first, ConsList<Item> rest, int index)
- * 3. Examples:
+ * Problem Analysis and Data Definitions
+ * - Helper function for getNameAt: if index is 0, return current Item’s name;
+ *   otherwise recurse on rest with index-1.
+ * 
+ * Function Purpose Statement and Signature
+ * - Returns the name of the Item at the given index, given current first item and rest elements.
+ * - String indexAt(Item first, ConsList<Item> rest, int index)
+ * 
+ * Examples:
  *    - indexAt([a.txt], [b.txt], 0) ==> "a.txt"
  *    - indexAt([a.txt], [b.txt], 1) ==> "b.txt"
- * 4. Design Strategy: Case distinction and Combining functions
- * 5. Implementation
+ * 
+ * Design Strategy: Case distinction and Combining functions
+ * 
  * @param first the current first Item
  * @param rest  the rest elements of the list
  * @param index target index
@@ -300,15 +314,17 @@ void testAddItemToDirectory() {
 
 // 4. Calculating Total Size
 /**
- * 1. Problem Analysis and Data Definitions
- * Calculates the total size of a given file system item in bytes.
+ * Problem Analysis and Data Definitions
+ * - Calculates the total size of a given file system item in bytes.
  * - If the item is a file, its size is its own defined size in bytes.
  * - If the item is a directory, its size is the sum of the sizes
  *   of all items it contains, calculated recursively, in bytes.
- * 2. Function Purpose Statement and Signature
- * Returns the total size in bytes of a file-system item.
- * int calculateSize(Item item)
- * 3. Examples:
+ * 
+ * Function Purpose Statement and Signature
+ * - Returns the total size in bytes of a file-system item.
+ * - int calculateSize(Item item)
+ * 
+ * Examples:
  *    - given: new Directory("empty", MakeList())               
  *      expect: 0
  *    - given: new File("a.txt", 1200)         
@@ -319,37 +335,40 @@ void testAddItemToDirectory() {
  *                                              new Directory("docs", MakeList(new File("n.txt", 12))), 
  *                                              new File("b", 8)))                               
  *      expect: 25
- * 4. Design Strategy: Template application
- * 5. Implementation
+ * 
+ * Design Strategy: Template application
+ * 
  * @param item The file system item to calculate the size of.
  * @return The total size in bytes.
  */
 int calculateSize(Item item) {
     return switch(item) {
-        case File(var name, var size) -> size;
-        case Directory(var name, var items) -> sumSizes(items);
+        case File(String name, int size) -> size;
+        case Directory(String name, ConsList<Item> items) -> sumSizes(items);
     };
 }
 
 /**
- * 1. Problem Analysis and Data Definitions
- * Helper function for ConsList<Item> that sums sizes of all elements recursively.
- * 2. Function Purpose Statement and Signature
- *  Calculate sum of ConsList<Item>.
- * int sumSizes(ConsList<Item> items)
- * 3. Examples:
+ * Problem Analysis and Data Definitions
+ * - Helper function for ConsList<Item> that sums sizes of all elements recursively.
+ * 
+ * Function Purpose Statement and Signature
+ * - Calculate sum of ConsList<Item>.
+ * - int sumSizes(ConsList<Item> items)
+ * 
+ * Examples:
  *    - given: []                                 expect: 0
  *    - given: [File("a", 1200)]                  expect: 1200
  *    - given: [File("a", 1200), File("b", 3000)] expect: 4200
- * 4. Design Strategy: Template application
- * 5. Implementation
+ * Design Strategy: Template application
+ * 
  * @param items A ConsList<Item> of file system items.
  * @return The sum of sizes of all items in bytes.
  */
 int sumSizes(ConsList<Item> items) {
     return switch(items) {
         case Nil<Item>() -> 0;
-        case Cons<Item>(var first, var rest) -> calculateSize(first) + sumSizes(rest);
+        case Cons<Item>(Item first, ConsList<Item> rest) -> calculateSize(first) + sumSizes(rest);
     };
 }
 
@@ -457,13 +476,15 @@ void testCalculateSize_AddEmptyDirNoChange() {
 
 // 5. Finding an Item
 /**
- * 1. Problem Analysis and Data Definitions
- * We need to can find an item anywhere in a file system based on its name.
- * 2. Function Purpose Statement and Signature
- * Recursively searches the file system rooted at initialItem for an entry with the given name.
- * Returns the first match.
- * Maybe<Item> findByName(String name, Item initialItem)
- * 3. Examples:
+ * Problem Analysis and Data Definitions
+ * - We need to can find an item anywhere in a file system based on its name.
+ * 
+ * Function Purpose Statement and Signature
+ * - Recursively searches the file system rooted at initialItem for an entry with the given name.
+ * - Returns the first match.
+ * - Maybe<Item> findByName(String name, Item initialItem)
+ * 
+ * Examples:
  *   - Given: findByName("a.txt", new File("a.txt", 1))
  *     Expect: Something(File("a.txt", 1))
  *   - Given: findByName("empty", new Directory("empty", MakeList()))
@@ -476,9 +497,9 @@ void testCalculateSize_AddEmptyDirNoChange() {
  *   - Given duplicates: Directory("root", [ Directory("dup",[]), File("dup",9) ])
  *                       findByName("dup", root)
  *     Expect: returns the Directory (the first match).
- * 4. Design Strategy: Template application and Combining functions
- * 5. Implementation:
- * Uses `Equals`  for String equality.
+ * 
+ * Design Strategy: Template application and Combining functions
+ * 
  * @param name The name of the file or directory to search for.
  * @param initialItem The file system item where the search should begin.
  * @return The first item found with the matching name, 
@@ -486,30 +507,33 @@ void testCalculateSize_AddEmptyDirNoChange() {
  */
 Maybe<Item> findByName(String name, Item initialItem) {
     return switch(initialItem) {
-        case File(var n, var size) ->
+        case File(String n, int size) ->
             Equals(n, name) ? new Something<Item>(initialItem) 
                             : new Nothing<Item>();
-        case Directory(var n, var items) ->
+        case Directory(String n, ConsList<Item> items) ->
             Equals(n, name) ? new Something<Item>(initialItem) 
                             : findByNameInList(name, items);
     };
 }
 
 /**
- * 1. Problem Analysis and Data Design
- * We need search a ConsList<Item> from left to right and return the first match.
- * 2. Function Purpose Statement and Signature
- * Maybe<Item> findByNameInList(String name, ConsList<Item> items)
- * Returns the first matching item, or Nothing.
- * 3. Examples:
+ * Problem Analysis and Data Design
+ * - We need search a ConsList<Item> from left to right and return the first match.
+ * 
+ * Function Purpose Statement and Signature
+ * - Maybe<Item> findByNameInList(String name, ConsList<Item> items)
+ * - Returns the first matching item, or Nothing.
+ * 
+ * Examples:
  *   - Given: name "x", items []
  *     Expect: Nothing
  *   - Given: name "a", items [ File("a",1), File("b",2) ]
  *     Expect: Something(File("a",1)) 
  *   - Given: name "n", items [ Directory("d",[File("n",3)]), File("n",4) ]
  *     Expect: Something(File("n",3))
- * 4. Design Strategy: 
- * Template application and Combining functions
+ * 
+ * 4. Design Strategy: Template application and Combining functions
+ * 
  * 5. Implementation
  * @param name  Target name to look for.
  * @param items A ConsList<Item> (Nil or Cons).
