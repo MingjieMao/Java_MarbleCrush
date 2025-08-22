@@ -1,6 +1,6 @@
 time-on-task:
 - task: "Part 1"
-  time: 580
+  time: 600
 - task: "Part 2"
   time: 820
 sessions: 
@@ -79,6 +79,6 @@ sessions:
 - start: 2025-08-22 11:20
   end: 2025-08-22 11:40
   notes: "some adjustments"
-- start: 2025-08-22 12:00
-  end: 2025-08-22 12:10
+- start: 2025-08-22 12:10
+  end: 2025-08-22 12:40
   notes: "final push"
