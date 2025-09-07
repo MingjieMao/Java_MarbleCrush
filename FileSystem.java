@@ -419,13 +419,13 @@ void testCalculateSize_DeepNested() {
 
 // Edge: zero-size file contributes 0
 void testCalculateSize_FileZero() {
-    Item f0 = new File("zero.bin", 0);
+    Item f0 = new File("zero", 0);
     testEqual(0, calculateSize(f0), "Zero-size file should contribute 0.");
 }
 
 // Edge: directory with all zero-size files
 void testCalculateSize_FlatAllZero() {
-    Item flatZero = new Directory("zeros",
+    Item flatZero = new Directory("zero",
         MakeList(new File("a", 0), new File("b", 0), new File("c", 0)));
     testEqual(0, calculateSize(flatZero), "All-zero files should sum to 0.");
 }
@@ -567,7 +567,7 @@ void testfindByName() {
 
     // 4) EmptyDirectory: searching an empty directory for a missing name -> should return Nothing
     Item d2 = new Directory("empty", MakeList());
-    testEqual(new Nothing<Item>(), findByName("nonexistent", d2),
+    testEqual(new Nothing<Item>(), findByName("file", d2),
                 "Searching an empty directory for a non-existent name should yield Nothing.");
 
     // 5) RecursiveSearch: target only exists in children -> should find nested file
